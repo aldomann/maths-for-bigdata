@@ -1,0 +1,83 @@
+---
+title: "Crash Course on Statistics"
+subtitle: "Maths for Big Data"
+author: "Alfredo Hernández"
+date: "1 March 2018"
+output:
+  html_notebook:
+    highlight: pygments
+    theme: cosmo
+    toc: yes
+---
+
+# Error on multiple testing 
+
+## Example of genes
+
+# Bayesian interpretation of FDR
+
+$FDR$: expected value of proportion of rejected hypotheses that were in fact true
+
+|          | NULL          | NON-NULL  | SUM               |
+|----------|---------------|-----------|-------------------|
+| NULL     | N_{0} - A     | A         | N_{0}             |
+| NON-NULL | N_{1} - B     | B         | N_{1} = N - N_{1} |
+| SUM      | N - R         | R = A + B | N                 |
+
+$$
+FDR = E \left( \frac{A}{R} \right)
+$$
+
+Each test $H_{0i}$, $i = 1, \dots, N$ produces a p-value $p_{i}$ according to the rule $D$.
+
+If $H_{0i}$ is true $\Rightarrow p_{i} \sim U[0,1]$.
+
+The $FDR$ algorithm (Benjamini--Hochberg):
+
+- Order the p-values:
+
+$$
+p_(1) < p_(2) < \cdots p_(N)
+$$
+
+ - Fix $q$ (usually 0.1), define $i_{max}$
+
+$$
+i_{max} = \max_{i} p_{(i)} \leq \frac{i}{N} q \Leftrightarrow p_{(i)}^{BH} = \frac{N}{i} p_{(i)} \leq q
+$$
+
+- Reject $H_{0i}$ for $i \leq i_{max}$. Don't reject for $i > i_{max}$.
+
+BH theorem: if the p-values are independent (yeah, right!) $\Rightarrow$ the algorithm controls $FDR < q$.
+
+## Empirical Bayes
+$$
+P_{i} \sim F =
+\begin{cases}
+	F_{0} (p) = p                 & \text{if } H_{0i} \text{ is true} \\
+	F_{1} (p) \neq \text{uniform} & \text{if } H_{0i} \text{ is false}
+\end{cases}
+$$
+
+Let's say that $P(H_{0i} \text{ is true}) = \pi_{0} = \frac{N_{0}}{N}$.
+\todo{Who is this guy $N_{0}$?}. Then
+$$
+	Fd_{post.prob} (p) = \frac{\pi_{0} F_{0} (p)}{ \pi_{0} F_{0}(p) + (1 - \pi_{0}) F_{1} (p)} = \frac{\pi_{0} p}{F (p)}
+$$
+<!-- \todo{$F$ unknown} -->
+
+But, $F$ can be estimated with the empirical distribution
+$$
+	\hat{F} (p) = \frac{\# \left\{p_{i} \leq p\right\} }{N} = \frac{R(p)}{N}
+$$
+
+Now, the Bayesian estimator $Fd_{pp} (p) = \frac{\pi_{0} p}{R(p)} N \leq \frac{P}{R(p)} N \equiv \overline{Fdr(p)}$ (false discovery rate estimator).
+
+Now we compute if for each $i$:
+$$
+	Fdr (p_{i}) = \frac{p_{(i)} N}{R(p_{(i)})} = \frac{p_{(i)} N}{i} = p_{(i)}^{BH} \leq q
+	\Leftrightarrow
+	\boxed{p_(i) < \frac{i q}{N}}
+$$
+
+This tells us that the BH algorithm is equivalent to rejecting $H_{0i}$, $\forall i$, s.t. $\overline{Fdr(p)} < q$. (Bayesian estimator of $FDR$).

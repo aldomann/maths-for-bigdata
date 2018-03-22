@@ -1,0 +1,41 @@
+---
+title: "Shrinkage Methods"
+subtitle: "Maths for Big Data"
+author: "Alfredo Hernández"
+date: "22 March 2018"
+output:
+  html_notebook:
+    highlight: pygments
+    theme: cosmo
+    toc: yes
+---
+
+# Linear model selection and regularisation
+
+- These notes are based on a series of talks given by D. Guilliot, and on Chapter 6 of *An Introduction to Statistical Learning with Applications in R*, by G. James, D. Witten, T. Hastie and R. Tibshirani; its careful
+reading is highly recommended.
+
+- Excercises Solve at least excercises 8 and 11 in Chapter 6 ISLA.
+
+# Shrinkage methods
+For a least squares linear regression we have
+$$
+	Y_{i} = \beta_{0} + \sum_{j=i}^{p} \beta_{j} x_{j} \quad \text{where } i = 1, \dots , n
+$$
+
+Eventually we want $n \ll p$
+
+
+
+Penalizing the coefficients:
+
+- Suppose we want to restrict the number or the size of the regression coefficients.
+
+- Add a penalty (or "price to pay") for including a nonzero coefficient.
+
+
+## Ridge regression
+
+
+## The Lasso
+
