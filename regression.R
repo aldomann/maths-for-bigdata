@@ -49,7 +49,7 @@ names(summary.fit.full)
 summary.fit.full$cp # proportional to AIC
 summary.fit.full$bic
 summary.fit.full$adjr2
-## All criteria choose model 8
+## All criteria choose model 8 (with optimal value)
 
 fit.full.larger=regsubsets(medv~.,data=Boston,nvmax=13)
 summary.fit.full.larger=summary(fit.full.larger)
@@ -75,9 +75,17 @@ summary(forward)
 
 ######### how do we choose????? Cross-validation (later)
 
+
+
+
+
+
 ########## LASSO  lambda is chosen wirh CV as well...  train/validate
 ## in order to split the data, put iyt in vector Y matrix X
 library(plotmo) # for plot_glmnet
+### CAREFUL:
+# alpha -> 1 = lasso, 0 = ridge, 2 = elastic net
+
 set.seed(115)
 x=model.matrix(medv~.,data=Boston)[,-1]
 y=Boston$medv
@@ -86,16 +94,20 @@ test=(-train)
 y.test=y[test]
 lasso.mod=glmnet(x[train,], y[train],alpha=1,standardize=TRUE)
 plot_glmnet(lasso.mod, label=TRUE,lwd=2)
+plot_glmnet(lasso.mod, label=TRUE,lwd=2, xvar="norm")
 
 cv.out =cv.glmnet (x[train ,],y[train],alpha =1)
 plot(cv.out)
-bestlam =cv.out$lambda.min;bestlam
+# bestlam =cv.out$lambda.min;bestlam
+bestlam =cv.out$lambda.1se;bestlam
 lasso.pred=predict (lasso.mod ,s=bestlam ,newx=x[test ,])
 mean(( lasso.pred -y.test)^2)
 
 out=glmnet (x,y,alpha =1) #### with all data
 lasso.coef=predict (out,type="coefficients",s=bestlam )[1:13,]
 lasso.coef
+
+## EXERCISE: try this using ridge
 
 #### other training proportion
 train2=sample(1:nrow(x),2*nrow(x)/3)
