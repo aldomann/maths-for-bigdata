@@ -157,7 +157,7 @@ $$
 
 Here is a geometric interpretation of the solutions for the equation in (c) above. We use the alternate form of Lasso constraints $| \hat{\beta}_1 | + | \hat{\beta}_2 | < s$.
 
-The Lasso constraint takes the form $| \hat{\beta}_1 | + | \hat{\beta}_2 | < s$, which when plotted takes the familiar shape of a diamond centered at origin $(0, 0)$. 
+The Lasso constraint takes the form $| \hat{\beta}_1 | + | \hat{\beta}_2 | < s$, which when plotted takes the familiar shape of a diamond centred at origin $(0, 0)$. 
 
 Next consider the squared optimisation constraint $(y_1 - \hat{\beta}_1x_{11} - \hat{\beta}_2x_{12})^2 + (y_2 - \hat{\beta}_1x_{21} - \hat{\beta}_2x_{22})^2$. We use the facts $x_{11} = x_{12}$, $x_{21} = x_{22}$, $x_{11} + x_{21} = 0$, $x_{12} + x_{22} = 0$ and $y_1 + y_2 = 0$ to simplify it to 
 
@@ -517,7 +517,7 @@ Before doing anything, let's make sure the data set does not have missing data:
 ```{r}
 table(is.na(College))
 ```
-As we can see, the data is alright and there is no need to clean it.
+As we can see, the data is all right and there is no need to clean it.
 
 Now we can work with the `College` data set and create a `college.train` (50% of the data) and `college.test` (50% of the data set):
 ```{r}
@@ -644,7 +644,7 @@ where $\beta$ has some elements that are exactly equal to zero.
 (f)	
 How does the model at which the test set MSE is minimized compare to the true model used to generate the data? Comment on the coefficient values.
  
-(g) Create a plot displaying $\sqrt{\sum_{j=1}^{p}{(\beta_{j} -\hat{\beta}_{j}^{r})}^{2}}$ for a range of values of $r$, where $\hat{\beta}_{j}^{r}$ is the jth coefficient estimate for the best model containing $r$ coefficients. Comment on what you observe. How does this compare to the test MSE plot from (d)?
+(g) Create a plot displaying $\sqrt{\sum_{j=1}^{p}{(\beta_{j} -\hat{\beta}_{j}^{r})}^{2}}$ for a range of values of $r$, where $\hat{\beta}_{j}^{r}$ is the $j$th coefficient estimate for the best model containing $r$ coefficients. Comment on what you observe. How does this compare to the test MSE plot from (d)?
 
 ## Answers
 
@@ -704,7 +704,7 @@ names(test.df) <- c("y", paste0("β", 1:20))
 ```
 
 
-Let us have a quick glance at the response $Y$ as a scatterplot (just ordered in sequential order):
+Let us have a quick glance at the response $Y$ as a scatter plot (just ordered in sequential order):
 ```{r}
 ggplot(data = rbind( cbind(train.df, type = rep("train", nrow(train.df))),
 										 cbind(test.df, type = rep("test", nrow(test.df)))) ) +
