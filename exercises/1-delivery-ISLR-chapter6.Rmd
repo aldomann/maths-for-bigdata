@@ -766,7 +766,7 @@ The minimum for train error should be at maximum predictor count:
 ```{r}
 which.min(err.full.train) 
 ```
-
+	
 ### Exercise 10 (d)
 
 Now we repeat the steps done previously, but now for the test set:
@@ -802,16 +802,16 @@ get_coef_df <- function(betas, coefs, sort.opt = T) {
 The coefficients are:
 ```{r}
 coef.best <- coef(regfit.full, id = which.min(err.full.test))
-betas[betas != 0]
-names(betas) <- paste0("β", 1:20)
+names(betas) <- paste0("β", 01:20)
 
 (coefs.df <- get_coef_df(betas, coef.best, F))
 ```
 
-As we can see, the best subset model successfully selected all the correct predictors, i.e., the following $\beta$: `r which(coefs.df$betas == 0)`.
+As we can see, the best subset model successfully selected all the correct predictors, i.e., the following $\beta$: `r coefs.df$beta[which(coefs.df$betas == 0)]`.
 
 ### Exercise 10 (g)
 
+Now we calculate the $\sqrt{\sum_{j=1}^{p}{(\beta_{j} -\hat{\beta}_{j}^{r})}^{2}}$ error to analyse the difference between the real model and the best model of each size:
 ```{r}
 err.coef <- rep(NA, p)
 for (i in 1:p) {
