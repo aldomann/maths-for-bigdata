@@ -1,17 +1,24 @@
 ---
 title: 'Delivery 1: Linear Model Selection and Regularisation (ISLR Chap. 6)'
-subtitle: 'Mathematics for Big Data'
 author: "Alfredo Hernández"
 date: "10 April 2018"
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
   html_notebook:
     toc: yes
     toc_depth: 2
+subtitle: Mathematics for Big Data
 ---
 First of all, we load packages and custom functions we will use later on:
 ```{r message=FALSE}
 library(tidyverse)
 source("../libs/multiplot.R")
+```
+
+```{r}
+knitr::knit_hooks$set(inline = as.character)
 ```
 
 # Exercise 3
@@ -67,7 +74,7 @@ for a particular value of $s$. For parts (a) through (e), indicate which of i. t
 	
 It is well-known that Ridge regression tends to give similar coefficient values to correlated variables, whereas the Lasso may give quite different coefficient values to correlated variables. We will now explore this property in a very simple setting.
 
-Suppose that $n = 2$, $p = 2$, $x_{11} = x_{12}$, $x_{21} = x_{22}$. Furthermore, suppose that $y_{1} + y_{2} = 0$ and $x_{11} + x_{21} = 0$ and $x_{12} + x_{22} = 0$, so that the estimate for the intercept in a least squares, Ridge regression, or Lasso model is zero: $\hat{\beta}_{0} = 0$.
+Suppose that $n = 2$, $p = 2$, $x_{11} = x_{12}$, $x_{21} = x_{22}$. Furthermore, suppose that $y_{1} + y_{2} = 0$ and $x_{11} + x_{21} = 0$ and $x_{12} + x_{22} = 0$, so that the estimate for the intercept in a least squares, Ridge regression, or Lasso model is zero: $\hat{\beta}_{0} = 0$.
 
 (a) Write out the Ridge regression optimisation problem in this setting.
  
@@ -192,9 +199,9 @@ $$
 	
 In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.
 
-(a) Use the `rnorm()` function to generate a predictor $X$ of length $n = 100$, as well as a noise vector $\epsilon$ of length $n = 100$.
+(a) Use the `rnorm()` function to generate a predictor $X$ of length $n = 100$, as well as a noise vector $\epsilon$ of length $n = 100$.
  
-(b) Generate a response vector $Y$ of length $n = 100$ according to the model
+(b) Generate a response vector $Y$ of length $n = 100$ according to the model
 $$
 Y = \beta_{0} + \beta_{1}X + \beta_{2}{X}^{2} + \beta_{3}{X}^{3} + \epsilon,
 $$
@@ -629,7 +636,7 @@ The plot shows that test $R^2$ for all models are around 0.9, with Lasso having 
 
 We have seen that as the number of features used in a model increases, the training error will necessarily decrease, but the test error may not. We will now explore this in a simulated data set.
 
-(a) Generate a data set with $p = 20$ features, $n = 1000$ observations, and an associated quantitative response vector generated according to the model
+(a) Generate a data set with $p = 20$ features, $n = 1000$ observations, and an associated quantitative response vector generated according to the model
 $$\displaystyle{Y = X \cdot \beta +\epsilon,}$$ 
 where $\beta$ has some elements that are exactly equal to zero.
  
