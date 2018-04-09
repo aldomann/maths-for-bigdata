@@ -97,7 +97,7 @@ $$
 
 ### Exercise 5 (b)
 
-First of all, we set $x_{11}=x_{12}=x_1$ and $x_{21}=x_{22}=x_2$. Then, we expand the previous expression; and we take the partial deritive to $\hat{\beta}_1$ and set equation to 0:
+First of all, we set $x_{11}=x_{12}=x_1$ and $x_{21}=x_{22}=x_2$. Then, we expand the previous expression; and we take the partial derivative to $\hat{\beta}_1$ and set equation to 0:
 $$
 (\hat{\beta}_1x_1^2-x_1y_1+\hat{\beta}_2x_1^2) + (\hat{\beta}_1x_2^2-x_2y_2+\hat{\beta}_2x_2^2) + \lambda\hat{\beta}_1 = 0
 \\
@@ -814,10 +814,13 @@ err.coef <- rep(NA, p)
 for (i in 1:p) {
   coef.i <- coef(regfit.full, id=i)
   df.err <- get_coef_df(betas, coef.i)
-  df.err[is.na(df.err[,3]), 3] <- 0
-  err.coef[i] <- sqrt(sum((df.err[, 2] - df.err[, 3])^2))
+  df.err <- df.err %>% 
+  	mutate(coefs = ifelse(is.na(coefs), 0, coefs) )
+  err.coef[i] <- sqrt(sum((df.err$betas - df.err$coefs)^2))
 }
 ```
+
+Let us see a plot of the coefficient error:
 ```{r}
 plot_mse(err.coef) + labs(y = "Coefficient Error")
 ```
