@@ -1,15 +1,12 @@
 ---
-title: 'Chapter 6: Linear Model Selection and Regularisation'
+title: 'Delivery 1: Linear Model Selection and Regularisation (ISLR Chap. 6)'
+subtitle: 'Mathematics for Big Data'
 author: "Alfredo Hernández"
 date: "10 April 2018"
 output:
   html_notebook:
     toc: yes
     toc_depth: 2
-  pdf_document:
-    toc: yes
-    toc_depth: '2'
-subtitle: An Introduction to Statistical Learning with Applications in R
 ---
 First of all, we load packages and custom functions we will use later on:
 ```{r message=FALSE}
