@@ -4,23 +4,32 @@ author: "Alfredo Hernández"
 date: "10 April 2018"
 output:
   pdf_document:
+    fig_height: 3
+    fig_width: 5.5
     toc: yes
-    toc_depth: '2'
+    toc_depth: 2
   html_notebook:
     toc: yes
     toc_depth: 2
 subtitle: Mathematics for Big Data
 ---
+\newpage
+# Preamble
 First of all, we load packages and custom functions we will use later on:
 ```{r message=FALSE}
 library(tidyverse)
+# SRC: https://github.com/aldomann/maths-for-bigdata/blob/master/libs/multiplot.R
 source("../libs/multiplot.R")
 ```
 
+We are also going to set a knit hook to compile inline R code as characters when rendering the PDF with LaTeX, as well as some display options for figures:
 ```{r}
 knitr::knit_hooks$set(inline = as.character)
+knitr::opts_chunk$set(dpi = 300, fig.align='center')
 ```
 
+######################################################################
+\newpage
 # Exercise 3
 
 Suppose we estimate the regression coefficients in a linear regression model by minimising
@@ -68,7 +77,7 @@ for a particular value of $s$. For parts (a) through (e), indicate which of i. t
 (v) Remains constant: by definition, the irreducible error is independent of the selected model.
 
 ######################################################################
-
+\newpage
 # Exercise 5
 
 	
@@ -194,7 +203,7 @@ $$
 $$
 
 ######################################################################
-
+\newpage
 # Exercise 8
 	
 In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.
@@ -496,7 +505,7 @@ As a conclusion, it seems that $BIC$ and Lasso effectively select the 1-variable
 
 
 ######################################################################
-
+\newpage
 # Exercise 9
 
 In this exercise, we will predict the number of applications received using the other variables in the `College` data set.
@@ -544,7 +553,7 @@ apps.lm <- lm(Apps ~ ., data = college.train)
 apps.pred.lm <- predict(apps.lm, newdata = college.test)
 apps.lm.test.rss <- mean((college.test$Apps - apps.pred.lm)^2)
 ```
-The RSS for the test data using OLS is `r apps.lm.test.rss`.
+The RSS for the test data using OLS is `r round(apps.lm.test.rss, 2)`.
 
 ### Exercise 9 (c)
 Now we want to perform a Ridge regression on the data:
@@ -565,7 +574,7 @@ Now we simply calculate the RSS for the test data:
 apps.pred.ridge <- predict(apps.ridge, s = best.lambda.ridge, newx = xmat.test)
 apps.ridge.test.rss <- mean((college.test$Apps - apps.pred.ridge)^2)
 ```
-The RSS for the test data using a Ridge regression is `r apps.ridge.test.rss`, which is slightly lower than the one obtained using OLS.
+The RSS for the test data using a Ridge regression is `r round(apps.ridge.test.rss, 2)`, which is slightly lower than the one obtained using OLS.
 
 ### Exercise 9 (d)
 
@@ -581,7 +590,7 @@ apps.pred.lasso <- predict(apps.lasso, s = best.lambda.lasso, newx = xmat.test)
 apps.lasso.test.rss <- mean((college.test$Apps - apps.pred.lasso)^2)
 ```
 
-The RSS for the test data using a Lasso regression is `r apps.lasso.test.rss`, which is lower than both OLS and Ridge regressions.
+The RSS for the test data using a Lasso regression is `r round(apps.lasso.test.rss, 2)`, which is lower than both OLS and Ridge regressions.
 
 ### Exercise 9 (g)
 
@@ -631,13 +640,15 @@ ggplot(apps.results) +
 The plot shows that test $R^2$ for all models are around 0.9, with Lasso having slightly higher test $R^2$ than OLS and Ridge. We can conclude that all models predict college applications with high accuracy. 
 
 ######################################################################
-
+\newpage
 # Exercise 10
 
 We have seen that as the number of features used in a model increases, the training error will necessarily decrease, but the test error may not. We will now explore this in a simulated data set.
 
 (a) Generate a data set with $p = 20$ features, $n = 1000$ observations, and an associated quantitative response vector generated according to the model
-$$\displaystyle{Y = X \cdot \beta +\epsilon,}$$ 
+$$
+Y = X \cdot \beta +\epsilon,
+$$
 where $\beta$ has some elements that are exactly equal to zero.
  
 (b) Split your data set into a training set containing 100 observations and a test set containing 900 observations.
@@ -706,8 +717,8 @@ test.df <- as_tibble(cbind(y = Y.test, X.mat.test))
 
 We will change the names of the columns to ease the identification of the parameters when analysing the different models:
 ```{r}
-names(train.df) <- c("y", paste0("β", 1:20))
-names(test.df) <- c("y", paste0("β", 1:20))
+names(train.df) <- c("y", paste0("X", 1:20))
+names(test.df) <- c("y", paste0("X", 1:20))
 ```
 
 
@@ -806,12 +817,15 @@ get_coef_df <- function(betas, coefs, sort.opt = T) {
 The coefficients are:
 ```{r}
 coef.best <- coef(regfit.full, id = which.min(err.full.test))
-names(betas) <- paste0("β", 01:20)
+names(betas) <- paste0("X", 1:20)
 
 (coefs.df <- get_coef_df(betas, coef.best, F))
 ```
 
-As we can see, the best subset model successfully selected all the correct predictors, i.e., the following $\beta$: `r coefs.df$beta[which(coefs.df$betas == 0)]`.
+As we can see, the best subset model successfully selected all the correct predictors, i.e., the following $\beta$: 
+```{r}
+coefs.df$beta[which(coefs.df$betas == 0)]
+```
 
 ### Exercise 10 (g)
 
