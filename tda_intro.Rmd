@@ -1,0 +1,36 @@
+---
+title: "TDA Test"
+output: html_notebook
+---
+
+```{r}
+library(TDA)
+circleSample <- circleUnif(n = 400, r = 1)
+plot(circleSample)
+```
+```{r}
+library(rgl)
+torusSample <- torusUnif(n = 10000, a = 1.8, c = 5)
+plot3d(torusSample)
+```
+
+```{r}
+library(igraph)
+g1 <- graph( edges=c(1,2, 2,3, 3, 1), n=10 )
+plot(g1)
+```
+
+```{r}
+library(TDAmapper)
+m1 <- mapper1D(
+distance_matrix = dist(data.frame( x=2*cos(0.5*(1:100)), y=sin(1:100) )), filter_values = 2*cos(0.5*(1:100)),
+num_intervals = 10,
+percent_overlap = 50,
+num_bins_when_clustering = 10)
+```
+
+```{r}
+library(igraph)
+g1 <- graph.adjacency(m1$adjacency, mode="undirected")
+plot(g1, layout = layout.auto(g1) )
+```
