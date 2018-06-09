@@ -42,6 +42,7 @@ train %>%
 	summarise_all(funs(sum(is.na(.))))
 ```
 
+## Cleaning empty spaces
 
 ```{r}
 train <- train %>%
@@ -76,19 +77,26 @@ train <- train %>%
 ```{r}
 library(wru)
 
-train.test <- as_tibble(predict_race(train.names, surname.only = T))
+train.test <- as_tibble(predict_race(train, surname.only = T))
 
-train.test %>% 
+train.test <- train.test %>% 
 	mutate(Ethnicity = colnames(
-		train.test %>% dplyr::select(contains("pred."))
+		train.test %>% dplyr::select(starts_with("pred."))
 		)[max.col(
-			train.test %>% dplyr::select(contains("pred.")),
+			train.test %>% dplyr::select(starts_with("pred.")),
 			ties.method="first"
 			)]) %>% 
-	dplyr::select(- contains("pred.")) %>% 
-	dplyr::rename(Surname = surname)
+	dplyr::select(- starts_with("pred.")) %>% 
+	dplyr::rename(Surname = surname) %>% 
+	mutate(Ethnicity = as.factor(Ethnicity))
 ```
 
+```{r}
+train.test %>% 
+	dplyr::group_by(Sex, Ethnicity) %>% 
+	select(Age) %>% 
+	summarise(mean(Age, na.rm = T))
+```
 
 
 
@@ -99,9 +107,9 @@ library(randomForest)
 ```
 
 ```{r}
-train.small <- train.names %>% drop_na() %>% select(- c("Ticket", "Cabin"))
+train.small <- train.test %>% drop_na() %>% select(- c("Ticket", "Cabin", "Surname"))
 
-rf.titanic <- randomForest(Survived~., data = train, na.action = na.omit, importance = TRUE)
+rf.titanic <- randomForest(Survived~., data = train.small, na.action = na.omit, importance = TRUE)
 ```
 
 
