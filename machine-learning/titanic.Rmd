@@ -1,0 +1,107 @@
+---
+title: 'Delivery 3: Isa Stuff'
+author: "Alfredo Hernández"
+date: "15 June 2018"
+output:
+  html_document:
+    theme: cosmo
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+subtitle: Mathematics for Big Data
+---
+
+# Introduction
+
+The sinking of the RMS Titanic is one of the most infamous shipwrecks in history.  On April 15, 1912, during her maiden voyage, the Titanic sank after colliding with an iceberg, killing 1502 out of 2224 passengers and crew. This sensational tragedy shocked the international community and led to better safety regulations for ships.
+
+One of the reasons that the shipwreck led to such loss of life was that there were not enough lifeboats for the passengers and crew. Although there was some element of luck involved in surviving the sinking, some groups of people were more likely to survive than others, such as women, children, and the upper-class.
+
+## Objective
+
+The objective is to build a model with Machine Learning that can predict the survival chance of a given individual performing a binary classification.
+
+## Data
+
+
+# Cleaning
+```{r message=FALSE}
+library(tidyverse)
+```
+
+First of all, we need to read the 
+```{r}
+train <- as_tibble(data.table::fread("data/titanic_train.csv"))
+test <- as_tibble(data.table::fread("data/titanic_test.csv"))
+```
+
+```{r}
+train %>%
+	summarise_all(funs(sum(is.na(.))))
+```
+
+
+```{r}
+train <- train %>%
+	mutate_all(funs(replace(., . == "", NA)))
+```
+
+
+```{r}
+train %>%
+	summarise_all(funs(sum(is.na(.))))
+```
+
+## Dealing with NAs
+
+```{r}
+train <- train %>% 
+	mutate_at(c("Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.))) %>% 
+	mutate(Survived = as.factor(ifelse(Survived == 1, T, F)))
+```
+
+```{r}
+train <- train %>% 
+	mutate(Name = gsub("^((\\w+\\W+){4}\\w+).*$","\\1", Name)) %>% 
+	mutate(Title = str_extract(Name, "[^,]+[.*]")) %>% 
+	mutate(surname = str_extract(Name, "[^,]+[^,]")) %>% 
+	mutate_at(c("Title", "surname"), funs(factor(.))) %>% 
+	select(- Name)
+
+# table(train.names %>% select(Surname))
+```
+## Feature engineering: ethnicities
+```{r}
+library(wru)
+
+train.test <- as_tibble(predict_race(train.names, surname.only = T))
+
+train.test %>% 
+	mutate(Ethnicity = colnames(
+		train.test %>% dplyr::select(contains("pred."))
+		)[max.col(
+			train.test %>% dplyr::select(contains("pred.")),
+			ties.method="first"
+			)]) %>% 
+	dplyr::select(- contains("pred.")) %>% 
+	dplyr::rename(Surname = surname)
+```
+
+
+
+
+
+# Random Forest
+```{r, message = FALSE}
+library(randomForest)
+```
+
+```{r}
+train.small <- train.names %>% drop_na() %>% select(- c("Ticket", "Cabin"))
+
+rf.titanic <- randomForest(Survived~., data = train, na.action = na.omit, importance = TRUE)
+```
+
+
