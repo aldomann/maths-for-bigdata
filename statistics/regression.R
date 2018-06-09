@@ -1,10 +1,10 @@
 ##### Multiple Regression Chap 3 ISL
 
 ## Install packages
-install.packages("leaps")
-install.packages("car")
-install.packages("glmnet")
-install.packages("plotmo")
+# install.packages("leaps")
+# install.packages("car")
+# install.packages("glmnet")
+# install.packages("plotmo")
 
 ## Load libraries
 library(MASS)
@@ -115,7 +115,8 @@ test2=(-train2)
 y2.test=y[test2]
 cv.out =cv.glmnet (x[train2,],y[train2],alpha =1)
 plot(cv.out)
-bestlam =cv.out$lambda.min;bestlam
+# bestlam =cv.out$lambda.min;bestlam
+bestlam =cv.out$lambda.1se;bestlam
 out=glmnet (x,y,alpha =1) #### with all data
 lasso.coef=predict (out,type="coefficients",s=bestlam )[1:13,]
 lasso.coef
@@ -141,7 +142,8 @@ test=(-train)
 y.test=y[test]
 cv.out =cv.glmnet (as.matrix(x[train,]),y[train],alpha =1,nfold=5)
 plot(cv.out) # dotted line on the left min cv-error, right error within 1 stdev from min
-bestlam =cv.out$lambda.min;bestlam
+# bestlam =cv.out$lambda.min;bestlam
+bestlam =cv.out$lambda.1se;bestlam
 out=glmnet(as.matrix(x),y,alpha =1) #### with all data, no standarization
 lasso.coef=predict (out,type="coefficients",s=bestlam )[1:11,]
 lasso.coef

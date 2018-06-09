@@ -273,15 +273,17 @@ We need the `leaps` package to use the `regsubsets()` function:
 library(leaps)
 ```
 
-Now we use `regsubsets()` to select best model having a polynomial of $X$ of degree 10:
+Now we use `regsubsets()` to select best subset having a polynomial of $X$ of degree 10:
 ```{r}
+time.subset.full.init <- Sys.time()
 mod.full <- regsubsets(Y ~ poly(X, 10, raw = T), 
 											 data = tibble(Y, X), 
 											 nvmax = 10)
+time.subset.full.final <- Sys.time()
 ```
 Note that we use the `poly()` function with the `raw = TRUE` option to use raw polynomials instead of orthogonal ones. 
 
-Now we can get the summary of the best selection using an exhaustive algorithm (the default method of `regsubsets()`):
+Now we can get the summary of the best subset selection using an exhaustive algorithm (the default method of `regsubsets()`):
 ```{r}
 (mod.summary <- summary(mod.full))[["outmat"]]
 ```
@@ -348,18 +350,22 @@ As we can see, the $BIC$ statistic selects the correct $\beta_{0} + \beta_{1}X +
 ### Exercise 8 (d)
 First of all, we need to fit forward and backward stepwise models to the data using the `regsubsets()` specifying the desired method:
 ```{r}
+time.subset.fwd.init <- Sys.time()
 mod.fwd <- regsubsets(Y ~ poly(X, 10, raw = T), 
 											data = tibble(Y, X), 
 											nvmax = 10,
 											method = "forward")
+time.subset.fwd.final <- Sys.time()
+
+time.subset.bwd.init <- Sys.time()
 mod.bwd <- regsubsets(Y ~ poly(X, 10, raw = T), 
 											data = tibble(Y, X), 
 											nvmax = 10,
 											method = "backward")
-
+time.subset.bwd.final <- Sys.time()
 ```
 
-Now we can get the summary of the best selection using both models:
+Now we can get the summary of the pa selection using both stepwise models:
 ```{r}
 (fwd.summary <- summary(mod.fwd))[["outmat"]]
 (bwd.summary <- summary(mod.bwd))[["outmat"]]
@@ -398,6 +404,15 @@ ggmatrix(list(# Forward Stepwise
 ```
 
 As we can see from the results, using the forward and backward stepwise methods we get the same exact results: the $C_{p}$ and adjusted $R^{2}$ statistics pick $X^{5}$ additionally to $X^{0}$, $X^{1}$, $X^{2}$, and $X^{3}$ whilst for the $BIC$ selects the correct model.
+
+WIP: Let us compare the computation times for each of the subset selection methods:
+```{r}
+time.subset.full.final - time.subset.full.init
+time.subset.fwd.final - time.subset.fwd.init
+time.subset.bwd.final - time.subset.bwd.init
+```
+
+
 
 ### Exercise 8 (e)
 
