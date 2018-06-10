@@ -89,6 +89,13 @@ train.test <- train.test %>%
 	dplyr::select(- starts_with("pred.")) %>% 
 	dplyr::rename(Surname = surname) %>% 
 	mutate(Ethnicity = as.factor(Ethnicity))
+
+train.test$Ethnicity <- train.test$Ethnicity %>%
+	plyr::revalue(c("pred.whi" = "White",
+									"pred.bla" = "Black",
+									"pred.asi" = "Asian",
+									"pred.his" = "Hispanic",
+									"pred.oth" = "Other"))
 ```
 
 ```{r}
