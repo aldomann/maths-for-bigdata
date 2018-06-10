@@ -37,32 +37,42 @@ train <- as_tibble(data.table::fread("data/titanic_train.csv"))
 test <- as_tibble(data.table::fread("data/titanic_test.csv"))
 ```
 
+
+## Dealing with NAs
+
+First of all, we check how many the training dataset has:
 ```{r}
 train %>%
 	summarise_all(funs(sum(is.na(.))))
 ```
 
-## Cleaning empty spaces
+### Cleaning empty fields
 
+But that's only half of the picture, as there are some predictors that have no content (they are empty), and need to be changed into `NA`s.
 ```{r}
 train <- train %>%
 	mutate_all(funs(replace(., . == "", NA)))
 ```
 
-
+Now we can see that we are taking into consideration all actual `NA`s:
 ```{r}
 train %>%
 	summarise_all(funs(sum(is.na(.))))
 ```
 
-## Dealing with NAs
+### Cleaning NAs
 
+
+## Factors
 ```{r}
 train <- train %>% 
-	mutate_at(c("Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.))) %>% 
-	mutate(Survived = as.factor(ifelse(Survived == 1, T, F)))
+	mutate_at(c("Survived", "Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.)))
 ```
 
+
+## Feature engineering
+
+## Extracting information from the names
 ```{r}
 train <- train %>% 
 	mutate(Name = gsub("^((\\w+\\W+){4}\\w+).*$","\\1", Name)) %>% 
@@ -70,10 +80,9 @@ train <- train %>%
 	mutate(surname = str_extract(Name, "[^,]+[^,]")) %>% 
 	mutate_at(c("Title", "surname"), funs(factor(.))) %>% 
 	select(- Name)
-
-# table(train.names %>% select(Surname))
 ```
-## Feature engineering: ethnicities
+
+### Ethnicities
 ```{r}
 library(wru)
 
@@ -117,6 +126,8 @@ library(randomForest)
 train.small <- train.test %>% drop_na() %>% select(- c("Ticket", "Cabin", "Surname"))
 
 rf.titanic <- randomForest(Survived~., data = train.small, na.action = na.omit, importance = TRUE)
+
+plot(rf.titanic)
 ```
 
 
