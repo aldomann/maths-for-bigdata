@@ -25,81 +25,152 @@ The objective is to build a model with Machine Learning that can predict the sur
 
 ## Data
 
+## Software
 
-# Cleaning
 ```{r message=FALSE}
 library(tidyverse)
+library(randomForest)
 ```
 
-First of all, we need to read the 
+Additionally, we will use some components of the `data.table` package calling directly the namespace.
+
+For ethnicity prediction we will use
 ```{r}
-train <- as_tibble(data.table::fread("data/titanic_train.csv"))
-test <- as_tibble(data.table::fread("data/titanic_test.csv"))
+library(wru)
+```
+
+# 1. Data wrangling
+
+## Reading the data
+First of all, we need to read the data sets from the files:
+```{r}
+titanic.train <- data.table::fread("data/titanic_train.csv")
+titanic.test <- data.table::fread("data/titanic_test.csv")
+```
+
+Since we are going to clean some features and perform feature engineering, we will bind the training and test data. We use the `bind_rows()` function from the `dplyr` package, as it matches columns by name, and any missing columns will be filled with `NA` (this is the case for `Survived` in the test data set):
+```{r}
+titanic.full <- bind_rows(titanic.train, titanic.test)
+```
+
+We will split again the data sets before we start building the predictive model.
+
+Before doing anything with the data, let us have a look at it and its structure:
+```{r}
+glimpse(titanic.full)
 ```
 
 
-## Dealing with NAs
+## Checking missing values (`NA`s)
 
-First of all, we check how many the training dataset has:
+First of all, we check how many the full data set has:
 ```{r}
-train %>%
+titanic.full %>%
+	select( - Survived) %>% 
 	summarise_all(funs(sum(is.na(.))))
 ```
 
-### Cleaning empty fields
+## Dealing with empty fields
 
-But that's only half of the picture, as there are some predictors that have no content (they are empty), and need to be changed into `NA`s.
+But that's only half of the picture, as there are some features that have no content (they are empty), and need to be changed into `NA`s before dealing with them properly:
 ```{r}
-train <- train %>%
+titanic.full <- titanic.full %>%
 	mutate_all(funs(replace(., . == "", NA)))
 ```
 
 Now we can see that we are taking into consideration all actual `NA`s:
 ```{r}
-train %>%
+titanic.full %>%
+	select( - Survived) %>% 
 	summarise_all(funs(sum(is.na(.))))
 ```
+We see three problematic features:
+- `Age` 
+- `Cabin`
+- `Embarked`
 
-### Cleaning NAs
+Notice that we have `r nrow(titanic.full)` observations. Dealing with `Age` and `Embarked` should be relatively easy.
+
+But before doing this, we will do some feature engineering to help us fill these `NA` data.
 
 
-## Factors
+# 2. Feature engineering
+
+## From Names to Surnames and Titles
+
+The `Name`s by themselves are quite obviously not going to be a good predictor, so we need to extract useful information from it. The two first obvious choices are 
+
+a. Surnames
+b. Titles (English honorifics)
+
+To do this, we need to look at the structure of a name: `Surname, Title. Name Secondname`. Having this information, we can simply use regular expressions to extract these two new features:
 ```{r}
-train <- train %>% 
-	mutate_at(c("Survived", "Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.)))
-```
-
-
-## Feature engineering
-
-## Extracting information from the names
-```{r}
-train <- train %>% 
+titanic.full <- titanic.full %>% 
 	mutate(Name = gsub("^((\\w+\\W+){4}\\w+).*$","\\1", Name)) %>% 
-	mutate(Title = str_extract(Name, "[^,]+[.*]")) %>% 
-	mutate(surname = str_extract(Name, "[^,]+[^,]")) %>% 
-	mutate_at(c("Title", "surname"), funs(factor(.))) %>% 
+	mutate(Title = gsub("(.*, )|(\\..*)", "", Name)) %>% 
+	mutate(surname = gsub("(*,)|(\\,.*)", "", Name)) %>% 
 	select(- Name)
 ```
 
-### Ethnicities
+Let us have a glance of the different `r length(unique(titanic.full$Title))` titles:
 ```{r}
-library(wru)
+table(titanic.full$Title)
+```
 
-train.test <- as_tibble(predict_race(train, surname.only = T))
+We can notice the following things: 
 
-train.test <- train.test %>% 
-	mutate(Ethnicity = colnames(
-		train.test %>% dplyr::select(starts_with("pred."))
-		)[max.col(
-			train.test %>% dplyr::select(starts_with("pred.")),
-			ties.method="first"
-			)]) %>% 
-	dplyr::select(- starts_with("pred.")) %>% 
-	dplyr::rename(Surname = surname) %>% 
-	mutate(Ethnicity = as.factor(Ethnicity))
+- A few titles are military people, probably the crew of the ship; these will be put together into `Navy`.
+- There a few rich/nobiliary people; these will generalised into `Sir` and `Lady` only.
+- Some of the honorifics are French or Dutch; we will refactor this into the English standard.
 
-train.test$Ethnicity <- train.test$Ethnicity %>%
+```{r}
+titanic.full$Title <- titanic.full$Title %>%
+	plyr::revalue(c("Ms" = "Mrs",
+									"Mme" = "Mrs",
+									"Mlle" = "Miss"))
+```
+
+```{r}
+titanic.full <- titanic.full %>% 
+	mutate(
+		Title = ifelse(Title %in% c("Dona", "Lady", "the Countess", "Jonkheer"), "Lady", Title),
+		Title = ifelse(Title %in% c("Don", "Sir"), "Sir", Title),
+		Title = ifelse(Title %in% c("Capt", "Major", "Col"), "Navy", Title)
+		)
+```
+
+Now we have a much more meaningful categorisation (only `r length(unique(titanic.full$Title))` categories) of the `Title`s:
+```{r}
+table(titanic.full$Title)
+```
+
+
+## Ethnicities
+
+Something that might be quite useful, not only as a feature by itself, but as an auxiliary variable to fill missing `Age`s, is the ethnicity of the passengers.
+
+First thing we do is to predict the ethnicity using US Census data:
+```{r}
+titanic.full <- wru::predict_race(titanic.full, surname.only = T)
+```
+This will give probabilities of being white, black, hispanic, asian, or other, based on the surname:
+```{r}
+head(titanic.full %>% select(surname, starts_with("pred.")))
+```
+
+
+Now all we need to do is to select the 
+```{r}
+titanic.full <- titanic.full %>% 
+	mutate(Ethnicity = colnames(titanic.full %>% select(starts_with("pred.")))
+				 [max.col(titanic.full %>% select(starts_with("pred.")), ties.method="first")]
+		) %>% 
+	select(- starts_with("pred.")) %>% 
+	rename(Surname = surname)
+```
+
+```{r}
+titanic.full$Ethnicity <- titanic.full$Ethnicity %>%
 	plyr::revalue(c("pred.whi" = "White",
 									"pred.bla" = "Black",
 									"pred.asi" = "Asian",
@@ -107,27 +178,71 @@ train.test$Ethnicity <- train.test$Ethnicity %>%
 									"pred.oth" = "Other"))
 ```
 
+From the data, the first thing we see is that most of the passengers were white:
 ```{r}
-train.test %>% 
-	dplyr::group_by(Sex, Ethnicity) %>% 
+titanic.full %>% 
+	select(Ethnicity, Sex) %>% 
+	table()
+```
+
+
+It could be interesting to see an overview of the survival ratio as a function of `Ethnicity` and `Sex`: 
+```{r}
+ggplot(drop_na_(titanic.full, "Survived")) +
+	aes(x = as.factor(Ethnicity), fill = as.factor(Survived)) +
+	geom_bar(aes(y = ..count../sum(..count..)), position = "fill") +
+	facet_grid(Sex ~ .) +
+	labs(fill = "Survived", x = "Ethnicity", y = "Renomalised proportion")
+```
+
+
+
+
+# 3. Filling missing values (`NA`s)
+
+## Age based on sex and ethnicity
+
+Now that we have the `Ethnicity`, we have more detailed information to predict the `Age` of people based on `Sex`, `Title` (this can give insight into the age; for instance Master is used for young boys)
+```{r}
+titanic.full %>% 
+	dplyr::filter(is.na(Age) == T) %>% 
+	group_by(Sex, Ethnicity, Title) %>% 
 	select(Age) %>% 
-	summarise(mean(Age, na.rm = T))
-```
-
-
-
-
-# Random Forest
-```{r, message = FALSE}
-library(randomForest)
+	summarise()
+	# summarise(mean(Age, na.rm = T))
 ```
 
 ```{r}
-train.small <- train.test %>% drop_na() %>% select(- c("Ticket", "Cabin", "Surname"))
+titanic.full %>% 
+	# dplyr::filter(is.na(Age) == T) %>% 
+	group_by(Sex, Ethnicity, Title) %>% 
+	select(Age) %>% 
+	# summarise()
+	summarise(mean.Age = mean(Age, na.rm = T))
+```
 
-rf.titanic <- randomForest(Survived~., data = train.small, na.action = na.omit, importance = TRUE)
 
-plot(rf.titanic)
+
+
+
+## Factoring the data
+```{r}
+titanic.train <- titanic.train %>% 
+	mutate_at(c("Survived", "Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.)))
+```
+
+
+
+# 4. Predictive model
+
+## Random Forest
+
+```{r}
+# titanic.train.small <- train.test %>% drop_na() %>% select(- c("Ticket", "Cabin", "Surname"))
+# 
+# rf.titanic <- randomForest(Survived~., data = titanic.train.small, na.action = na.omit, importance = TRUE)
+# 
+# plot(rf.titanic)
 ```
 
 
