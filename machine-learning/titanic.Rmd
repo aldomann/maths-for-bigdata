@@ -25,6 +25,21 @@ The objective is to build a model with Machine Learning that can predict the sur
 
 ## Data
 
+The features are the following:
+
+| Feature  | Description                                | Key                                            |
+|----------|--------------------------------------------|------------------------------------------------|
+| `survival` | Survival                                   | `0` = No, `1` = Yes                                |
+| `pclass`   | Ticket class                               | `1` = 1st, `2` = 2nd, `3` = 3rd                      |
+| `sex`      | Sex                                        |                                                |
+| `age`      | Age in years                               |                                                |
+| `sibsp`    | # of siblings / spouses aboard the Titanic |                                                |
+| `parch`    | # of parents / children aboard the Titanic |                                                |
+| `ticket`   | Ticket number                              |                                                |
+| `fare`     | Passenger fare                             |                                                |
+| `cabin`    | Cabin number                               |                                                |
+| `embarked` | Port of Embarkation                        | `C` = Cherbourg, `Q` = Queenstown, `S` = Southampton |
+
 ## Software
 
 ```{r message=FALSE}
@@ -52,9 +67,10 @@ titanic.train <- data.table::fread("data/titanic_train.csv")
 titanic.test <- data.table::fread("data/titanic_test.csv")
 ```
 
-Since we are going to clean some features and perform feature engineering, we will bind the training and test data. We use the `bind_rows()` function from the `dplyr` package, as it matches columns by name, and any missing columns will be filled with `NA` (this is the case for `Survived` in the test data set):
+Since we are going to clean some features and perform feature engineering, we will bind the training and test data. We use the `bind_rows()` function from the `dplyr` package, as it matches columns by name, and any missing columns will be filled with `NA` (this is the case for `survived` in the test data set):
 ```{r}
 titanic.full <- bind_rows(titanic.train, titanic.test)
+names(titanic.full) <- tolower(names(titanic.full))
 ```
 
 We will split again the data sets before we start building the predictive model.
@@ -70,7 +86,7 @@ glimpse(titanic.full)
 First of all, we check how many the full data set has:
 ```{r}
 titanic.full %>%
-	select( - Survived) %>% 
+	select( - survived) %>% 
 	summarise_all(funs(sum(is.na(.))))
 ```
 
@@ -85,28 +101,24 @@ titanic.full <- titanic.full %>%
 Now we can see that we are taking into consideration all actual `NA`s:
 ```{r}
 titanic.full %>%
-	select( - Survived) %>% 
+	select( - survived) %>% 
 	summarise_all(funs(sum(is.na(.))))
 ```
 We see three problematic features:
-- `Age` 
-- `Fare`
-- `Cabin`
-- `Embarked`
+- `age` 
+- `fare`
+- `cabin`
+- `embarked`
 
-Notice that we have `r nrow(titanic.full)` observations. Dealing with `Fare` and `Embarked` should be relatively easy, so we will start with these. For `Age` we need additional features that we will extract from the data, so we will deal with it later. In contrast, for `Cabin` one could argue there is not enough data to perform a proper inference of the missing values, so we will not attempt it.
+Notice that we have `r nrow(titanic.full)` observations. Dealing with `fare` and `embarked` should be relatively easy, so we will start with these. For `age` we need additional features that we will extract from the data, so we will deal with it later. In contrast, for `cabin` one could argue there is not enough data to perform a proper inference of the missing values, so we will not attempt it.
 
 But before doing this, we will do some feature engineering to help us fill these `NA` data.
 
-# 2. Filling missing values (I)
+# 3. Name feature engineering
 
+## Surnames and titles
 
-
-# 3. Feature engineering
-
-## Surnames and Titles
-
-The `Name`s by themselves are quite obviously not going to be a good predictor, so we need to extract useful information from it. The two first obvious choices are 
+The `name`s by themselves are quite obviously not going to be a good predictor, so we need to extract useful information from it. The two first obvious choices are 
 
 a. Surnames
 b. Titles (English honorifics)
@@ -114,15 +126,14 @@ b. Titles (English honorifics)
 To do this, we need to look at the structure of a name: `Surname, Title. Name Secondname`. Having this information, we can simply use regular expressions to extract these two new features:
 ```{r}
 titanic.full <- titanic.full %>% 
-	mutate(Name = gsub("^((\\w+\\W+){4}\\w+).*$","\\1", Name)) %>% 
-	mutate(Title = gsub("(.*, )|(\\..*)", "", Name)) %>% 
-	mutate(surname = gsub("(*,)|(\\,.*)", "", Name)) # %>% 
-	# select(- Name)
+	mutate(name = gsub("^((\\w+\\W+){4}\\w+).*$","\\1", name)) %>% 
+	mutate(title = gsub("(.*, )|(\\..*)", "", name)) %>% 
+	mutate(surname = gsub("(*,)|(\\,.*)", "", name))
 ```
 
-Let us have a glance of the different `r length(unique(titanic.full$Title))` titles:
+Let us have a glance of the different `r length(unique(titanic.full$title))` titles:
 ```{r}
-table(titanic.full$Title)
+table(titanic.full$title)
 ```
 
 We can notice the following things: 
@@ -132,7 +143,7 @@ We can notice the following things:
 - Some of the honorifics are French or Dutch; we will refactor this into the English standard.
 
 ```{r}
-titanic.full$Title <- titanic.full$Title %>%
+titanic.full$title <- titanic.full$title %>%
 	plyr::revalue(c("Ms" = "Mrs",
 									"Mme" = "Mrs",
 									"Mlle" = "Miss"))
@@ -141,21 +152,21 @@ titanic.full$Title <- titanic.full$Title %>%
 ```{r}
 titanic.full <- titanic.full %>% 
 	mutate(
-		Title = ifelse(Title %in% c("Dona", "Lady", "the Countess", "Jonkheer"), "Lady", Title),
-		Title = ifelse(Title %in% c("Don", "Sir"), "Sir", Title),
-		Title = ifelse(Title %in% c("Capt", "Major", "Col"), "Navy", Title)
+		title = ifelse(title %in% c("Dona", "Lady", "the Countess", "Jonkheer"), "Lady", title),
+		title = ifelse(title %in% c("Don", "Sir"), "Sir", title),
+		title = ifelse(title %in% c("Capt", "Major", "Col"), "Navy", title)
 		)
 ```
 
-Now we have a much more meaningful categorisation (only `r length(unique(titanic.full$Title))` categories) of the `Title`s:
+Now we have a much more meaningful categorisation (only `r length(unique(titanic.full$title))` categories) of the `title`s:
 ```{r}
-table(titanic.full$Title)
+table(titanic.full$title)
 ```
 
 
 ## Ethnicities
 
-Something that might be quite useful, not only as a feature by itself, but as an auxiliary variable to fill missing `Age`s, is the ethnicity of the passengers.
+Something that might be quite useful, not only as a feature by itself, but as an auxiliary variable to fill missing `age`s, is the ethnicity of the passengers.
 
 First thing we do is to predict the ethnicity using US Census data (sadly, it is not possible to use data from 1912, but it will be hopefully be a good first approach to the problem):
 ```{r}
@@ -171,15 +182,15 @@ head(titanic.full %>% select(surname, starts_with("pred.")))
 Now all we need to do is to select the 
 ```{r}
 titanic.full <- titanic.full %>% 
-	mutate(Ethnicity = colnames(titanic.full %>% select(starts_with("pred.")))
+	mutate(ethnicity = colnames(titanic.full %>% select(starts_with("pred.")))
 				 [max.col(titanic.full %>% select(starts_with("pred.")), ties.method="first")]
 		) %>% 
-	select(- starts_with("pred.")) %>%
-	rename(Surname = surname)
+	select(- starts_with("pred.")) %>% 
+	mutate(ethnicity = as.factor(ethnicity))
 ```
 
 ```{r}
-titanic.full$Ethnicity <- titanic.full$Ethnicity %>%
+titanic.full$ethnicity <- titanic.full$ethnicity %>%
 	plyr::revalue(c("pred.whi" = "White",
 									"pred.bla" = "Black",
 									"pred.asi" = "Asian",
@@ -191,89 +202,178 @@ titanic.full$Ethnicity <- titanic.full$Ethnicity %>%
 From the data, the first thing we see is that most of the passengers were white:
 ```{r}
 titanic.full %>% 
-	select(Ethnicity, Sex) %>% 
+	select(ethnicity, sex) %>% 
 	table()
 ```
 
-It could be interesting to see an overview of the survival ratio as a function of `Ethnicity` and `Sex`: 
+It could be interesting to see an overview of the survival ratio as a function of `ethnicity` and `sex`: 
 ```{r}
-ggplot(drop_na_(titanic.full, "Survived")) +
-	aes(x = as.factor(Ethnicity), fill = as.factor(Survived)) +
+ggplot(drop_na_(titanic.full, "survived")) +
+	aes(x = as.factor(ethnicity), fill = as.factor(survived)) +
 	geom_bar(aes(y = ..count../sum(..count..)), position = "fill") +
-	facet_grid(Sex ~ .) +
+	facet_grid(sex ~ .) +
 	labs(fill = "Survived", x = "Ethnicity", y = "Renomalised proportion") +
 	theme_bw()
 ```
-This already lets us suspect that `Sex` and `Ethnicity` (especially the former) will have some influence on the survival chance.
-
-
-## Fare categories
+This already lets us suspect that `sex` and `ethnicity` (especially the former) will have some influence on the survival chance.
 
 
 
+<!-- Remember that we still have a missing `fare` value, so we need to categorise it this when we deal with it. -->
 
 
-# 4. Filling missing values (II)
+# 4. Economical feature engineering
 
 First we will deal with the missing values that can be input by hand without an advanced inference model:
 
-- `Fare`
-- `Embarked`
+- `fare`
+- `embarked`
 
-## Fare
-Let us have a look at the passenger missing the `Fare` feature:
+## Missing fare value
+Let us have a look at the passenger missing the `fare` feature:
 ```{r}
-titanic.full[which(is.na(titanic.full$Fare)),]
+titanic.full[which(is.na(titanic.full$fare)),]
+```
+The relevant features to impute the `fare` would seem to be `pclass`, and `embarked`, so we will focus on those:
+```{r}
+titanic.full %>%
+	filter(pclass == 3, embarked == "S", is.na(fare) == F) %>% 
+	ggplot() +
+		geom_histogram(aes(x = fare), binwidth = 1, 
+									 fill = "white", colour = "black")
 ```
 
-## Embarkment
-Let us have a look at the passengers missing the `Embarked` feature:
+Looking at the histogram above, it would seem appropiate to impute the median `fare` for this `pclass` and `embarked` combination:
 ```{r}
-titanic.full[which(is.na(titanic.full$Embarked)),]
+titanic.full[which(is.na(titanic.full$fare)),]$fare <- 
+	median(
+	titanic.full %>%
+		filter(pclass == 3, embarked == "S") %>% 
+		select(fare) %>% 
+		na.omit() %>% 
+		unlist()
+	)
+```
+
+## Fare categories
+
+Let us see how many different unique values of `fare` are there and their distribution:
+```{r}
+length(unique(titanic.full$fare))
+
+ggplot(titanic.full) +
+	geom_histogram(aes(x = fare), binwidth = 5, 
+								 fill = "white", colour = "black")
+```
+
+That is definitely way too many, but we can prettify this data by categorising the fares into ranges, looking at the quantiles of the `fare` distribution.
+```{r}
+quantile(titanic.full$fare, na.rm = T)
+```
+
+A reasonable division for `fare` could be: 
+- `<= 10`
+- `10 <= 20`
+- `20 <= 30`
+- `< 30`
+
+```{r}
+titanic.full <- titanic.full %>% 
+	mutate(fare.range = cut(fare, breaks = c(-Inf, 10, 20, 30, Inf), 
+													labels = c("<10", "10-20", "20-30", ">30")))
 ```
 
 ```{r}
-ggplot(titanic.full %>% drop_na()) +
-	geom_tile(aes(y = as.factor(Pclass), x = as.factor(Fare), fill = Embarked))
+table(is.na(titanic.full$fare.range))
 ```
 
 
-## Age based on sex and ethnicity
 
-Now that we have the `Ethnicity`, we have more detailed information to predict the `Age` of people based on `Sex`, `Title` (this can give insight into the age; for instance Master is used for young boys), and `Ethnicity`. 
-
-The idea is to replace the missing values by the mean of the combination group of `Sex + Ethnicity + Title`:
+## Embarkation place
+Let us have a look at the passengers missing the `embarked` feature:
 ```{r}
-impute_group_mean <- function(x) replace(x, is.na(x), median(x, na.rm = TRUE))
+titanic.full[which(is.na(titanic.full$embarked)),]
+```
+
+The relevant features to impute `embarked` would seem to be `pclass`, `fare`, and `fare.class` so we will focus on those:
+```{r}
+titanic.full %>% 
+	filter(pclass == 1, 
+				 fare.range == ">30", 
+				 fare < 500,
+				 is.na(embarked) == F) %>% 
+ggplot() +
+	geom_boxplot(aes(x = as.factor(embarked), y = fare)) +
+	geom_hline(yintercept = titanic.full[which(is.na(titanic.full$embarked)), "fare"][1], 
+						 linetype = "dashed", colour = "red") +
+	labs(x = "Embarked", y = "Fare (USD)")
+```
+
+The decision is not obvious, but `C` (Cherbourg) seems to be a better value, as the `fare` value approaches more the median of this `embarked` class.
+
+# 5. Age missing values
+
+Now that we have the `ethnicity`, we have more detailed information to predict the `age` of people based on `sex`, `title` (this can give insight into the age; for instance Master is used for young boys), and the former.
+
+The idea is to replace the missing values by the mean of the combination group of `sex + ethnicity + title` to have more a more accurate representation:
+```{r}
+impute_group_median <- function(x) replace(x, is.na(x), median(x, na.rm = TRUE))
 
 titanic.full <- titanic.full %>%
-	plyr::ddply(~ Sex + Ethnicity + Title, transform, Age = impute_group_mean(Age))
+	plyr::ddply(~ sex + ethnicity + title, transform, age = impute_group_median(age))
 ```
 
 Now we just check if there are any `NA`s that we could not impute with this method (for instance, a group without defined mean from the available data):
 ```{r}
-table(is.na(titanic.full$Age))
+table(is.na(titanic.full$age))
 ```
 
 Everything is all right, so we will continue.
 
+```{r}
+titanic.full %>%
+	select( - survived) %>% 
+	summarise_all(funs(sum(is.na(.))))
+```
 
-# 5. Predictive model
+# 6. Predictive model
 
 ## Factoring the data
+One important thing in R is that if we need to deal with predictive models (or models in general)...
 ```{r}
-titanic.train <- titanic.train %>% 
-	mutate_at(c("Survived", "Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.)))
+titanic.full <- titanic.full %>% 
+	mutate_at(c("survived", "sex", "ticket", "cabin", "embarked", 
+							"ethnicity", "title", "surname"), 
+						funs(factor(.)))
 ```
+
+```{r}
+glimpse(titanic.full)
+```
+
+
+
 
 ## Random Forest
 
 ```{r}
-# titanic.train.small <- train.test %>% drop_na() %>% select(- c("Ticket", "Cabin", "Surname"))
-# 
-# rf.titanic <- randomForest(Survived~., data = titanic.train.small, na.action = na.omit, importance = TRUE)
-# 
-# plot(rf.titanic)
+titanic.train <- titanic.full[201:891,]
+titanic.true.test <- titanic.full[1:200,]
+titanic.test <- titanic.full[892:1309,]
+```
+
+
+```{r}
+titanic.train.small <- titanic.train %>% select(- c("name" ,"ticket", "cabin", "surname"))
+
+rf.titanic <- randomForest(survived~., data = titanic.train.small, na.action = na.omit, importance = TRUE)
+
+plot(rf.titanic)
+
+ggplot(cbind(rf.titanic$err.rate, 
+						 tree = )) +
+	aes(x = )
+	geom_line(aes())
 ```
 
 
