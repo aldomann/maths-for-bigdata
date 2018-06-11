@@ -8,7 +8,7 @@ output:
     highlight: tango
     toc: true
     toc_float:
-      collapsed: false
+      collapsed: true
       smooth_scroll: false
 subtitle: Mathematics for Big Data
 ---
@@ -39,7 +39,11 @@ For ethnicity prediction we will use
 library(wru)
 ```
 
+
+
+
 # 1. Data wrangling
+In this process we will read the data and do a basic cleaning of the data.
 
 ## Reading the data
 First of all, we need to read the data sets from the files:
@@ -86,17 +90,21 @@ titanic.full %>%
 ```
 We see three problematic features:
 - `Age` 
+- `Fare`
 - `Cabin`
 - `Embarked`
 
-Notice that we have `r nrow(titanic.full)` observations. Dealing with `Age` and `Embarked` should be relatively easy.
+Notice that we have `r nrow(titanic.full)` observations. Dealing with `Fare` and `Embarked` should be relatively easy, so we will start with these. For `Age` we need additional features that we will extract from the data, so we will deal with it later. In contrast, for `Cabin` one could argue there is not enough data to perform a proper inference of the missing values, so we will not attempt it.
 
 But before doing this, we will do some feature engineering to help us fill these `NA` data.
 
+# 2. Filling missing values (I)
 
-# 2. Feature engineering
 
-## From Names to Surnames and Titles
+
+# 3. Feature engineering
+
+## Surnames and Titles
 
 The `Name`s by themselves are quite obviously not going to be a good predictor, so we need to extract useful information from it. The two first obvious choices are 
 
@@ -108,8 +116,8 @@ To do this, we need to look at the structure of a name: `Surname, Title. Name Se
 titanic.full <- titanic.full %>% 
 	mutate(Name = gsub("^((\\w+\\W+){4}\\w+).*$","\\1", Name)) %>% 
 	mutate(Title = gsub("(.*, )|(\\..*)", "", Name)) %>% 
-	mutate(surname = gsub("(*,)|(\\,.*)", "", Name)) %>% 
-	select(- Name)
+	mutate(surname = gsub("(*,)|(\\,.*)", "", Name)) # %>% 
+	# select(- Name)
 ```
 
 Let us have a glance of the different `r length(unique(titanic.full$Title))` titles:
@@ -149,10 +157,11 @@ table(titanic.full$Title)
 
 Something that might be quite useful, not only as a feature by itself, but as an auxiliary variable to fill missing `Age`s, is the ethnicity of the passengers.
 
-First thing we do is to predict the ethnicity using US Census data:
+First thing we do is to predict the ethnicity using US Census data (sadly, it is not possible to use data from 1912, but it will be hopefully be a good first approach to the problem):
 ```{r}
 titanic.full <- wru::predict_race(titanic.full, surname.only = T)
 ```
+
 This will give probabilities of being white, black, hispanic, asian, or other, based on the surname:
 ```{r}
 head(titanic.full %>% select(surname, starts_with("pred.")))
@@ -165,7 +174,7 @@ titanic.full <- titanic.full %>%
 	mutate(Ethnicity = colnames(titanic.full %>% select(starts_with("pred.")))
 				 [max.col(titanic.full %>% select(starts_with("pred.")), ties.method="first")]
 		) %>% 
-	select(- starts_with("pred.")) %>% 
+	select(- starts_with("pred.")) %>%
 	rename(Surname = surname)
 ```
 
@@ -178,6 +187,7 @@ titanic.full$Ethnicity <- titanic.full$Ethnicity %>%
 									"pred.oth" = "Other"))
 ```
 
+
 From the data, the first thing we see is that most of the passengers were white:
 ```{r}
 titanic.full %>% 
@@ -185,55 +195,76 @@ titanic.full %>%
 	table()
 ```
 
-
 It could be interesting to see an overview of the survival ratio as a function of `Ethnicity` and `Sex`: 
 ```{r}
 ggplot(drop_na_(titanic.full, "Survived")) +
 	aes(x = as.factor(Ethnicity), fill = as.factor(Survived)) +
 	geom_bar(aes(y = ..count../sum(..count..)), position = "fill") +
 	facet_grid(Sex ~ .) +
-	labs(fill = "Survived", x = "Ethnicity", y = "Renomalised proportion")
+	labs(fill = "Survived", x = "Ethnicity", y = "Renomalised proportion") +
+	theme_bw()
+```
+This already lets us suspect that `Sex` and `Ethnicity` (especially the former) will have some influence on the survival chance.
+
+
+## Fare categories
+
+
+
+
+
+# 4. Filling missing values (II)
+
+First we will deal with the missing values that can be input by hand without an advanced inference model:
+
+- `Fare`
+- `Embarked`
+
+## Fare
+Let us have a look at the passenger missing the `Fare` feature:
+```{r}
+titanic.full[which(is.na(titanic.full$Fare)),]
 ```
 
+## Embarkment
+Let us have a look at the passengers missing the `Embarked` feature:
+```{r}
+titanic.full[which(is.na(titanic.full$Embarked)),]
+```
 
+```{r}
+ggplot(titanic.full %>% drop_na()) +
+	geom_tile(aes(y = as.factor(Pclass), x = as.factor(Fare), fill = Embarked))
+```
 
-
-# 3. Filling missing values (`NA`s)
 
 ## Age based on sex and ethnicity
 
-Now that we have the `Ethnicity`, we have more detailed information to predict the `Age` of people based on `Sex`, `Title` (this can give insight into the age; for instance Master is used for young boys)
+Now that we have the `Ethnicity`, we have more detailed information to predict the `Age` of people based on `Sex`, `Title` (this can give insight into the age; for instance Master is used for young boys), and `Ethnicity`. 
+
+The idea is to replace the missing values by the mean of the combination group of `Sex + Ethnicity + Title`:
 ```{r}
-titanic.full %>% 
-	dplyr::filter(is.na(Age) == T) %>% 
-	group_by(Sex, Ethnicity, Title) %>% 
-	select(Age) %>% 
-	summarise()
-	# summarise(mean(Age, na.rm = T))
+impute_group_mean <- function(x) replace(x, is.na(x), median(x, na.rm = TRUE))
+
+titanic.full <- titanic.full %>%
+	plyr::ddply(~ Sex + Ethnicity + Title, transform, Age = impute_group_mean(Age))
 ```
 
+Now we just check if there are any `NA`s that we could not impute with this method (for instance, a group without defined mean from the available data):
 ```{r}
-titanic.full %>% 
-	# dplyr::filter(is.na(Age) == T) %>% 
-	group_by(Sex, Ethnicity, Title) %>% 
-	select(Age) %>% 
-	# summarise()
-	summarise(mean.Age = mean(Age, na.rm = T))
+table(is.na(titanic.full$Age))
 ```
 
+Everything is all right, so we will continue.
 
 
-
+# 5. Predictive model
 
 ## Factoring the data
 ```{r}
 titanic.train <- titanic.train %>% 
 	mutate_at(c("Survived", "Sex", "Ticket", "Cabin", "Embarked"), funs(factor(.)))
 ```
-
-
-
-# 4. Predictive model
 
 ## Random Forest
 
