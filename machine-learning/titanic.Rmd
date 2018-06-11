@@ -310,6 +310,11 @@ ggplot() +
 ```
 
 The decision is not obvious, but `C` (Cherbourg) seems to be a better value, as the `fare` value approaches more the median of this `embarked` class.
+```{r}
+titanic.full <- titanic.full %>% 
+	mutate(embarked = ifelse(passengerid %in% c(62, 830),
+													 "C", embarked))
+```
 
 # 5. Age missing values
 
@@ -336,12 +341,13 @@ titanic.full %>%
 	summarise_all(funs(sum(is.na(.))))
 ```
 
-# 6. Predictive model
+# 6. Predictive model with Random Forest
 
 ## Factoring the data
 One important thing in R is that if we need to deal with predictive models (or models in general)...
 ```{r}
 titanic.full <- titanic.full %>% 
+	mutate(survived = ifelse(survived == 1, "true", "false")) %>% 
 	mutate_at(c("survived", "sex", "ticket", "cabin", "embarked", 
 							"ethnicity", "title", "surname"), 
 						funs(factor(.)))
@@ -354,26 +360,64 @@ glimpse(titanic.full)
 
 
 
-## Random Forest
+## Building the model
 
 ```{r}
-titanic.train <- titanic.full[201:891,]
-titanic.true.test <- titanic.full[1:200,]
+titanic.full <- titanic.full %>% 
+	arrange(passengerid) %>% 
+	select(- c("name" ,"ticket", "cabin", "surname"))
+
+titanic.train <- titanic.full[1:691,]
+titanic.cv.test <- titanic.full[692:891,]
 titanic.test <- titanic.full[892:1309,]
 ```
 
 
 ```{r}
-titanic.train.small <- titanic.train %>% select(- c("name" ,"ticket", "cabin", "surname"))
+rf.titanic <- randomForest(survived~., data = titanic.train %>% select(- c("passengerid")), 
+													 na.action = na.omit, importance = TRUE)
 
-rf.titanic <- randomForest(survived~., data = titanic.train.small, na.action = na.omit, importance = TRUE)
-
-plot(rf.titanic)
-
-ggplot(cbind(rf.titanic$err.rate, 
-						 tree = )) +
-	aes(x = )
-	geom_line(aes())
+cbind(as_tibble(rf.titanic$err.rate),
+			trees = seq(1, 500, 1)) %>%
+	ggplot() +
+		aes(x = trees) +
+		geom_line(aes(y = OOB, colour = "oob")) +
+		geom_line(aes(y = true, colour = "true")) +
+		geom_line(aes(y = false, colour = "false")) +
+		scale_colour_manual(values = c("oob" = "black",
+																	 "true" = "green",
+																	 "false" = "red"
+		)) +
+		labs(x = "Trees", y = "Error", colour = "Error")
 ```
 
+```{r}
+importance    <- importance(rf.titanic)
+varImportance <- data.frame(Variables = row.names(importance), 
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+
+# Create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+# Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+    y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_minimal()
+```
+
+## Cross validation
+```{r}
+titanic.cv.pred <- data.frame(passengerid = titanic.cv.test$passengerid, 
+														survived = predict(rf.titanic, titanic.cv.test))
+
+titanic.cv.real <- data.frame(passengerid = titanic.cv.test$passengerid, 
+											survived = as.factor(titanic.cv.test$survived))
+
+caret::confusionMatrix(data = titanic.cv.pred$survived, 
+											 reference = titanic.cv.real$survived)
+```
 
