@@ -110,11 +110,14 @@ We see three problematic features:
 - `cabin`
 - `embarked`
 
-Notice that we have `r nrow(titanic.full)` observations. Dealing with `fare` and `embarked` should be relatively easy, so we will start with these. For `age` we need additional features that we will extract from the data, so we will deal with it later. In contrast, for `cabin` one could argue there is not enough data to perform a proper inference of the missing values, so we will not attempt it.
+Notice that we have `r nrow(titanic.full)` observations. Dealing with `fare` and `embarked` should be relatively easy, so we will start with these. For `age` we need additional features that we will extract from the data, so we will deal with it later. In contrast, for `cabin` one could argue there is not enough data to perform a proper inference of the missing values; this will require some extra thought.
 
-But before doing this, we will do some feature engineering to help us fill these `NA` data.
+Sections 2-4 will deal with filling the `NA` and feature engineering that will either help that task, or be helpful for the predictive model (hopefully both).
 
-# 3. Name feature engineering
+
+
+
+# 2. Names and ethnicities
 
 ## Surnames and titles
 
@@ -222,7 +225,7 @@ This already lets us suspect that `sex` and `ethnicity` (especially the former) 
 <!-- Remember that we still have a missing `fare` value, so we need to categorise it this when we deal with it. -->
 
 
-# 4. Economical feature engineering
+# 3. Economical status
 
 First we will deal with the missing values that can be input by hand without an advanced inference model:
 
@@ -287,7 +290,7 @@ titanic.full <- titanic.full %>%
 table(is.na(titanic.full$fare.range))
 ```
 
-## Embarkation place
+## Missing embarkation place
 Let us have a look at the passengers missing the `embarked` feature:
 ```{r}
 titanic.full[which(is.na(titanic.full$embarked)),]
@@ -333,6 +336,14 @@ titanic.full %>%
 		labs(x = "Deck", y = "Fare (USD)")
 ```
 
+```{r}
+titanic.full %>% 
+	filter(is.na(cabin)) %>% 
+	ggplot() +
+		aes(x = fare) +
+		geom_histogram(binwidth = 10)
+```
+
 It seems `fare` is a good feature to classify the `deck`. Since there is quite a lot of variability, it seems reasonable to build a discrete distribution model based on the mean (the median could work just as well), to fill the missing `deck` values:
 ```{r}
 probs.fare <- titanic.full %>% 
@@ -356,7 +367,9 @@ titanic.full <- titanic.full %>%
 
 There surely is a better model to take into account the deviation associated to each `deck`, but this seems to be a reasonable first approach.
 
-# 5. Missing age values
+# 4. Ages and families
+
+## Missing age values
 
 Now that we have the `ethnicity`, we have more detailed information to predict the `age` of people based on `sex`, `title` (this can give insight into the age; for instance Master is used for young boys), and the former.
 
@@ -373,55 +386,73 @@ Now we just check if there are any `NA`s that we could not impute with this meth
 table(is.na(titanic.full$age))
 ```
 
-# ?. Family size
+<!-- ## Age category -->
+<!-- The seafaring command that women and children be the first to board the lifeboats when a ship abandoned gives us an idea on a useful predictive features. Since we already know the `sex`, we should build an `age.category`. -->
+
+<!-- The decision seems quite straightforward: we should divide people into `"kid"`s and `"adult"`s. But another thing to consider is that senior people might move slower, or prioritise saving kids instead of themselves in an act of self-sacrifice. We have decided to divide ages into 4 categories: -->
+
+<!-- - `"kid"`: up to 15 years old, to identify people who need the help of others to mobilise. -->
+<!-- - `"young"`: from 15 to 35 years old. This might help identify mothers, as the average childbirth in the 1910s was 23 years old. -->
+<!-- - `"adult"`: from 35 to 60 years old. -->
+<!-- - `"senior"`: older than 60 years old; the eldery. -->
+
+<!-- ```{r} -->
+<!-- titanic.full <- titanic.full %>% -->
+<!-- 	mutate(age.category = cut(age, breaks = c(-Inf, 15, 35, 60, Inf), -->
+<!-- 														labels = c("kid", "young", "adult", "senior"))) -->
+<!-- 	# mutate(age.category = cut(age, breaks = c(-Inf, 15, Inf), -->
+<!-- 														# labels = c("kid", "adult"))) -->
+<!-- ``` -->
+
+## Family size
 ```{r}
 titanic.full <- titanic.full %>% 
 	mutate(family.size =sibsp + parch + 1)
 ```
 
 
-Everything is all right, so we will continue.
-
-```{r}
-titanic.full %>%
-	select( - survived) %>% 
-	summarise_all(funs(sum(is.na(.))))
-```
-
-# 6. Predictive model with Random Forest
+# 5. Predictive model with Random Forest
 
 ## Factoring the data
-One important thing in R is that if we need to deal with predictive models (or models in general)...
+One important thing in R is that if we need to deal with predictive models (or models in general), having data as characters is not useful at all; we need to transform data into factors:
 ```{r}
 titanic.full <- titanic.full %>% 
 	mutate(survived = ifelse(survived == 1, "true", "false")) %>% 
 	mutate_at(c("survived", "sex", "ticket", "cabin", "embarked", 
-							"ethnicity", "title", "surname", "deck"), 
+							"ethnicity", "title", "surname", "deck"
+							), 
 						funs(factor(.)))
 ```
 
-
-
-
 ## Building the model
 
+First of all, we will get rid of some features that should not help into predicting the survival chance (either because it is aggregated into another faeature, or because it is just noise):
 ```{r}
 titanic.full.clean <- titanic.full %>% 
 	arrange(passengerid) %>% 
-	select(- c("name" ,"ticket", "cabin", "surname"))
+	select(- c("name" ,"ticket", "cabin", "surname",
+						 "fare.range",
+						 "deck",
+						 "parch",
+						 "sibsp"
+						 ))
 
 titanic.train <- titanic.full.clean[1:691,]
 titanic.cv.test <- titanic.full.clean[692:891,]
 titanic.test <- titanic.full.clean[892:1309,]
 ```
 
-
+Now we just perform the Random Forest on the training set to model `survived` as the response:
 ```{r}
+set.seed(42)
 rf.titanic <- randomForest(survived~., data = titanic.train %>% select(- c("passengerid")), 
-													 na.action = na.omit, importance = TRUE)
+													 na.action = na.omit, importance = TRUE, ntree = 500)
+```
 
+Below we can see plot of the error rates of the model:
+```{r}
 cbind(as.data.frame(rf.titanic$err.rate),
-			trees = seq(1, 500, 1)) %>%
+			trees = seq_along(rf.titanic$err.rate[,1])) %>%
 	ggplot() +
 		aes(x = trees) +
 		geom_line(aes(y = OOB, colour = "oob")) +
@@ -434,13 +465,13 @@ cbind(as.data.frame(rf.titanic$err.rate),
 		labs(x = "Trees", y = "Error", colour = "Error")
 ```
 
+
+We should take a look into the importance of each variable into predicting the `survived` value. This can help us "debug" our model and see which features are essentially useless when building the model:
 ```{r}
 importance <- importance(rf.titanic)
-vars.importance <- data.frame(variables = row.names(importance),
-															importance = round(importance[ ,'MeanDecreaseGini'],2))
 
-# Create a rank variable based on importance
-vars.importance %>%
+data.frame(variables = row.names(importance),
+					 importance = round(importance[ ,'MeanDecreaseGini'], 2)) %>% 
 	mutate(rank = paste0('#', dense_rank(desc(importance)))) %>% 
 	ggplot() + 
 		aes(x = reorder(variables, importance), y = importance, fill = importance) +
@@ -454,7 +485,8 @@ vars.importance %>%
 ## Cross validation
 ```{r}
 titanic.cv.pred <- data.frame(passengerid = titanic.cv.test$passengerid, 
-														survived = predict(rf.titanic, titanic.cv.test))
+														survived = predict(rf.titanic, titanic.cv.test, 
+																							 OOB = TRUE, type = "response"))
 
 titanic.cv.real <- data.frame(passengerid = titanic.cv.test$passengerid, 
 											survived = as.factor(titanic.cv.test$survived))
@@ -467,23 +499,41 @@ caret::confusionMatrix(data = titanic.cv.pred$survived,
 Now we can use the model to predict the real test data:
 ```{r}
 titanic.test.pred <- data.frame(PassengerId = titanic.test$passengerid, 
-														Survived = predict(rf.titanic, titanic.test)) 
+														Survived = predict(rf.titanic, titanic.test, 
+																							 OOB = TRUE, type = "response")) 
 titanic.test.pred$Survived <- titanic.test.pred$Survived %>% 
 	plyr::revalue(c("true" = 1,
 									"false" = 0))
 ```
 
-We can submit the data to the Kaggle competition to see the performance of our predictive model:
-```{r eval=FALSE}
-write_csv(titanic.test.pred, "kaggle_titanic_predictions.csv")
+<!-- We can submit the data to the Kaggle competition to see the performance of our predictive model: -->
+<!-- ```{r eval=FALSE} -->
+<!-- write_csv(titanic.test.pred, "kaggle_titanic_predictions5.csv") -->
+<!-- ``` -->
+
+Since this is an academic problem, the solution is known and can be used to test the accuracy of our predictive model. First we read the data:
+```{r}
+# Source: https://raw.githubusercontent.com/shezard/Titanic/master/data/solution.csv
+titanic.solution <- data.table::fread("data/solution.csv")
 ```
 
-We made two submissions:
+And then we calculate the accuracy of the prediction:
+```{r}
+right_join(titanic.test.pred, titanic.solution, by = "PassengerId") %>% 
+	mutate(good.pred = ifelse(Survived.x == Survived.y, T, F)) %>% 
+	select(good.pred) %>% 
+	table() %>% 
+	prop.table()
+```
 
-- Not including `deck` with an accuracy of 0.77511
-- Including `deck` with an accuracy of 0.75598
+We focused in two solutions:
 
-Apparently, the method to generate missing `deck` values is not that accurate. This could mean that `NA` values in deck are actually significative, or that the `deck` by itself just adds noise.
+- Including `deck` with an accuracy of 0.854067
+- Not including `deck` with an accuracy of 0.8851675
+
+Apparently, the method to generate missing `deck` values is not that accurate. This could mean that `NA` values in deck are actually significative, or that the `deck` by itself just adds noise, as we did not use the individual `fare` vales in the process of imputing the data (we only used `fare` to infer some kind of distribution of the `deck`).
 
 
 
+
+# 6. Conclusion
