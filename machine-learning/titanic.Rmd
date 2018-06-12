@@ -25,7 +25,11 @@ The objective is to build a model with Machine Learning that can predict the sur
 
 ## Data
 
-The features are the following:
+The data can be downloaded from the [Titanic Competition](https://www.kaggle.com/c/titanic/data) on Kaggle.
+
+It consists on a training set that contains the outcome (also known as the “ground truth”) for each passenger, and a test set to see how well the model performs on unseen data. For each passenger in the test set, we will use the trained model to predict whether or not they survived the sinking of the Titanic.
+
+The features of the datasets are the following:
 
 | Feature  | Description                                | Key                                            |
 |----------|--------------------------------------------|------------------------------------------------|
@@ -42,20 +46,17 @@ The features are the following:
 
 ## Software
 
+We are going to use the `tidyverse` meta-package mainly for `dplyr` (data manipulation) and `magrittr` (to use pipes). For building the model, we are going to use the `randomForest` package.
 ```{r message=FALSE}
 library(tidyverse)
 library(randomForest)
 ```
 
-Additionally, we will use some components of the `data.table` package calling directly the namespace.
+Additionally, we will use some components of the following packages calling directly the namespace:
 
-For ethnicity prediction we will use
-```{r}
-library(wru)
-```
-
-
-
+- `data.table` for fast processing of files.
+- `wru` for ethnicity prediction
+- `caret` to calculate the confusion matrix in the cross validation process.
 
 # 1. Data wrangling
 In this process we will read the data and do a basic cleaning of the data.
@@ -215,8 +216,7 @@ ggplot(drop_na_(titanic.full, "survived")) +
 	aes(x = as.factor(ethnicity), fill = as.factor(survived)) +
 	geom_bar(aes(y = ..count../sum(..count..)), position = "fill") +
 	facet_grid(sex ~ .) +
-	labs(fill = "Survived", x = "Ethnicity", y = "Renomalised proportion") +
-	theme_bw()
+	labs(fill = "Survived", x = "Ethnicity", y = "Renomalised proportion")
 ```
 This already lets us suspect that `sex` and `ethnicity` (especially the former) will have some influence on the survival chance.
 
@@ -243,7 +243,7 @@ titanic.full %>%
 	filter(pclass == 3, embarked == "S", is.na(fare) == F) %>% 
 	ggplot() +
 		geom_histogram(aes(x = fare), binwidth = 1, 
-									 fill = "white", colour = "black")
+									 fill = "slateblue1", colour = "black")
 ```
 
 Looking at the histogram above, it would seem appropiate to impute the median `fare` for this `pclass` and `embarked` combination:
@@ -266,7 +266,7 @@ length(unique(titanic.full$fare))
 
 ggplot(titanic.full) +
 	geom_histogram(aes(x = fare), binwidth = 5, 
-								 fill = "white", colour = "black")
+								 fill = "slateblue1", colour = "black")
 ```
 
 That is definitely way too many, but we can prettify this data by categorising the fares into ranges, looking at the quantiles of the `fare` distribution.
@@ -304,10 +304,10 @@ titanic.full %>%
 				 fare < 500,
 				 is.na(embarked) == F) %>% 
 ggplot() +
-	geom_boxplot(aes(x = as.factor(embarked), y = fare)) +
+	geom_boxplot(aes(x = as.factor(embarked), y = fare, fill = as.factor(embarked))) +
 	geom_hline(yintercept = titanic.full[which(is.na(titanic.full$embarked)), "fare"][1], 
 						 linetype = "dashed", colour = "red") +
-	labs(x = "Embarked", y = "Fare (USD)")
+		labs(x = "Embarked", y = "Fare (USD)", fill = "Embarked")
 ```
 
 The decision is not obvious, but `C` (Cherbourg) seems to be a better value, as the `fare` value approaches more the median of this `embarked` class.
@@ -331,17 +331,9 @@ titanic.full %>%
 	filter(deck != "T", fare < 500) %>% 
 	na.omit() %>% 
 	ggplot() +
-		aes(x = as.factor(deck), y = fare) +
+		aes(x = as.factor(deck), y = fare, fill = as.factor(deck)) +
 		geom_boxplot() +
-		labs(x = "Deck", y = "Fare (USD)")
-```
-
-```{r}
-titanic.full %>% 
-	filter(is.na(cabin)) %>% 
-	ggplot() +
-		aes(x = fare) +
-		geom_histogram(binwidth = 10)
+		labs(x = "Deck", y = "Fare (USD)", fill = "Deck")
 ```
 
 It seems `fare` is a good feature to classify the `deck`. Since there is quite a lot of variability, it seems reasonable to build a discrete distribution model based on the mean (the median could work just as well), to fill the missing `deck` values:
@@ -405,10 +397,13 @@ table(is.na(titanic.full$age))
 <!-- ``` -->
 
 ## Family size
+Rather than working with `sibsp` and `parch`, it seems that an aggregate feature of both would be more signigicant and useful: `family.size` that indicates the number of family members the passenger is travelling with:
 ```{r}
 titanic.full <- titanic.full %>% 
 	mutate(family.size =sibsp + parch + 1)
 ```
+
+
 
 
 # 5. Predictive model with Random Forest
@@ -449,18 +444,18 @@ rf.titanic <- randomForest(survived~., data = titanic.train %>% select(- c("pass
 													 na.action = na.omit, importance = TRUE, ntree = 500)
 ```
 
-Below we can see plot of the error rates of the model:
+Below we can see plot of the error rates of the model for OOB (out-of-bag), survived (True), and deceased (False) data:
 ```{r}
 cbind(as.data.frame(rf.titanic$err.rate),
 			trees = seq_along(rf.titanic$err.rate[,1])) %>%
 	ggplot() +
 		aes(x = trees) +
-		geom_line(aes(y = OOB, colour = "oob")) +
-		geom_line(aes(y = true, colour = "true")) +
-		geom_line(aes(y = false, colour = "false")) +
-		scale_colour_manual(values = c("oob" = "black",
-																	 "true" = "green",
-																	 "false" = "red"
+		geom_line(aes(y = OOB, colour = "OOB")) +
+		geom_line(aes(y = true, colour = "True")) +
+		geom_line(aes(y = false, colour = "False")) +
+		scale_colour_manual(values = c("OOB" = "black",
+																	 "True" = "green",
+																	 "False" = "red"
 		)) +
 		labs(x = "Trees", y = "Error", colour = "Error")
 ```
@@ -478,11 +473,13 @@ data.frame(variables = row.names(importance),
 		geom_bar(stat = "identity", colour = "black") + 
 		scale_fill_continuous(low = "slategray1", high = "slateblue1") +
 		labs(x = "Variables", y = "Importance", fill = "Importance") +
-		coord_flip() + 
-		theme_bw()
+		coord_flip()
 ```
 
 ## Cross validation
+By default the random forest picks up (a) 2/3rd of the data for training and rest for testing for regression, and (b) almost 70% data for training and rest for testing during classification. By principle since it randomises the variable selection during each tree split it is not prone to overfit unlike other models.
+
+Anyway, to cross validate the model, we use a small sample of the training data to perform a test of the predicted `survived` values, and compare it with the real `survived` values:
 ```{r}
 titanic.cv.pred <- data.frame(passengerid = titanic.cv.test$passengerid, 
 														survived = predict(rf.titanic, titanic.cv.test, 
@@ -490,13 +487,16 @@ titanic.cv.pred <- data.frame(passengerid = titanic.cv.test$passengerid,
 
 titanic.cv.real <- data.frame(passengerid = titanic.cv.test$passengerid, 
 											survived = as.factor(titanic.cv.test$survived))
-
+```
+Now we can have a look at the confusion matrix to describe the performance of our model using the real data:
+```{r}
 caret::confusionMatrix(data = titanic.cv.pred$survived, 
 											 reference = titanic.cv.real$survived)
 ```
 
+
 ## Prediction for the test data
-Now we can use the model to predict the real test data:
+Now that we have a rough idea of how good our model is, we can use the model to predict the real test data:
 ```{r}
 titanic.test.pred <- data.frame(PassengerId = titanic.test$passengerid, 
 														Survived = predict(rf.titanic, titanic.test, 
@@ -511,10 +511,10 @@ titanic.test.pred$Survived <- titanic.test.pred$Survived %>%
 <!-- write_csv(titanic.test.pred, "kaggle_titanic_predictions5.csv") -->
 <!-- ``` -->
 
-Since this is an academic problem, the solution is known and can be used to test the accuracy of our predictive model. First we read the data:
+Since this is an academic problem, the solution is known and can be used to test the real accuracy of our predictive model. First we read the data:
 ```{r}
 # Source: https://raw.githubusercontent.com/shezard/Titanic/master/data/solution.csv
-titanic.solution <- data.table::fread("data/solution.csv")
+titanic.solution <- data.table::fread("data/titanic_solution.csv")
 ```
 
 And then we calculate the accuracy of the prediction:
@@ -533,7 +533,9 @@ We focused in two solutions:
 
 Apparently, the method to generate missing `deck` values is not that accurate. This could mean that `NA` values in deck are actually significative, or that the `deck` by itself just adds noise, as we did not use the individual `fare` vales in the process of imputing the data (we only used `fare` to infer some kind of distribution of the `deck`).
 
+# 6. Conclusions
 
+Although random forest is a quite powerful technique, one must be careful with a few things:
 
-
-# 6. Conclusion
+- Over-engineering the data can lead to worse predictions, as it just adds noise to the model. As a general rule, when building a prediction model is the main goal of a study, often a minimal set of variables with good prediction performance is selected.
+- Chosing the right models to fill missing data can be quite tricky and can lead to bias into the model.
