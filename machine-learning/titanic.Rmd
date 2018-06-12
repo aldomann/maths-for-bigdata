@@ -287,8 +287,6 @@ titanic.full <- titanic.full %>%
 table(is.na(titanic.full$fare.range))
 ```
 
-
-
 ## Embarkation place
 Let us have a look at the passengers missing the `embarked` feature:
 ```{r}
@@ -316,7 +314,49 @@ titanic.full <- titanic.full %>%
 													 "C", embarked))
 ```
 
-# 5. Age missing values
+## Cabin and deck
+
+Looking into the `cabin` values, we see that they follow some structure: they are composed by a letter (from `"A` to `G`, and a single value with `"T"`) and a room number. This letter most probably represents the deck and could give an important insight in the survival chance, as it should give a somehow acurate representation of where the passengers were located.
+
+We discussed that trying to impute the cabin would be impractical and difficult, but extracting the `deck` from available data, and reconstructing it to the missing values seems quite reasonable. 
+
+First of all, let us see how the `fare` relates to the `deck`:
+```{r}
+titanic.full %>% 
+	mutate(deck = substr(cabin, 0, 1)) %>% 
+	group_by(deck) %>% 
+	filter(deck != "T", fare < 500) %>% 
+	na.omit() %>% 
+	ggplot() +
+		aes(x = as.factor(deck), y = fare) +
+		geom_boxplot() +
+		labs(x = "Deck", y = "Fare (USD)")
+```
+
+It seems `fare` is a good feature to classify the `deck`. Since there is quite a lot of variability, it seems reasonable to build a discrete distribution model based on the mean (the median could work just as well), to fill the missing `deck` values:
+```{r}
+probs.fare <- titanic.full %>% 
+	mutate(deck = substr(cabin, 0, 1)) %>% 
+	group_by(deck) %>% 
+	filter(deck != "T") %>% 
+	summarise(mean.fare = mean(fare)) %>% 
+	mutate(prob.fare = mean.fare/sum(mean.fare)) %>% 
+	select(prob.fare) %>% 
+	unlist()
+```
+
+```{r}
+titanic.full <- titanic.full %>% 
+	mutate(deck = substr(cabin, 0, 1)) %>% 
+	mutate(deck = ifelse(is.na(deck), 
+											 sample(c("A", "B", "C", "D", "E", "F", "G"), 
+											 			 size = 1, replace = T, prob = probs.fare),
+											 deck))
+```
+
+There surely is a better model to take into account the deviation associated to each `deck`, but this seems to be a reasonable first approach.
+
+# 5. Missing age values
 
 Now that we have the `ethnicity`, we have more detailed information to predict the `age` of people based on `sex`, `title` (this can give insight into the age; for instance Master is used for young boys), and the former.
 
@@ -332,6 +372,13 @@ Now we just check if there are any `NA`s that we could not impute with this meth
 ```{r}
 table(is.na(titanic.full$age))
 ```
+
+# ?. Family size
+```{r}
+titanic.full <- titanic.full %>% 
+	mutate(family.size =sibsp + parch + 1)
+```
+
 
 Everything is all right, so we will continue.
 
@@ -349,12 +396,8 @@ One important thing in R is that if we need to deal with predictive models (or m
 titanic.full <- titanic.full %>% 
 	mutate(survived = ifelse(survived == 1, "true", "false")) %>% 
 	mutate_at(c("survived", "sex", "ticket", "cabin", "embarked", 
-							"ethnicity", "title", "surname"), 
+							"ethnicity", "title", "surname", "deck"), 
 						funs(factor(.)))
-```
-
-```{r}
-glimpse(titanic.full)
 ```
 
 
@@ -363,13 +406,13 @@ glimpse(titanic.full)
 ## Building the model
 
 ```{r}
-titanic.full <- titanic.full %>% 
+titanic.full.clean <- titanic.full %>% 
 	arrange(passengerid) %>% 
 	select(- c("name" ,"ticket", "cabin", "surname"))
 
-titanic.train <- titanic.full[1:691,]
-titanic.cv.test <- titanic.full[692:891,]
-titanic.test <- titanic.full[892:1309,]
+titanic.train <- titanic.full.clean[1:691,]
+titanic.cv.test <- titanic.full.clean[692:891,]
+titanic.test <- titanic.full.clean[892:1309,]
 ```
 
 
@@ -377,7 +420,7 @@ titanic.test <- titanic.full[892:1309,]
 rf.titanic <- randomForest(survived~., data = titanic.train %>% select(- c("passengerid")), 
 													 na.action = na.omit, importance = TRUE)
 
-cbind(as_tibble(rf.titanic$err.rate),
+cbind(as.data.frame(rf.titanic$err.rate),
 			trees = seq(1, 500, 1)) %>%
 	ggplot() +
 		aes(x = trees) +
@@ -392,21 +435,20 @@ cbind(as_tibble(rf.titanic$err.rate),
 ```
 
 ```{r}
-importance    <- importance(rf.titanic)
-varImportance <- data.frame(Variables = row.names(importance), 
-                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+importance <- importance(rf.titanic)
+vars.importance <- data.frame(variables = row.names(importance),
+															importance = round(importance[ ,'MeanDecreaseGini'],2))
 
 # Create a rank variable based on importance
-rankImportance <- varImportance %>%
-  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
-
-# Use ggplot2 to visualize the relative importance of variables
-ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
-    y = Importance, fill = Importance)) +
-  geom_bar(stat='identity') + 
-  labs(x = 'Variables') +
-  coord_flip() + 
-  theme_minimal()
+vars.importance %>%
+	mutate(rank = paste0('#', dense_rank(desc(importance)))) %>% 
+	ggplot() + 
+		aes(x = reorder(variables, importance), y = importance, fill = importance) +
+		geom_bar(stat = "identity", colour = "black") + 
+		scale_fill_continuous(low = "slategray1", high = "slateblue1") +
+		labs(x = "Variables", y = "Importance", fill = "Importance") +
+		coord_flip() + 
+		theme_bw()
 ```
 
 ## Cross validation
@@ -420,4 +462,28 @@ titanic.cv.real <- data.frame(passengerid = titanic.cv.test$passengerid,
 caret::confusionMatrix(data = titanic.cv.pred$survived, 
 											 reference = titanic.cv.real$survived)
 ```
+
+## Prediction for the test data
+Now we can use the model to predict the real test data:
+```{r}
+titanic.test.pred <- data.frame(PassengerId = titanic.test$passengerid, 
+														Survived = predict(rf.titanic, titanic.test)) 
+titanic.test.pred$Survived <- titanic.test.pred$Survived %>% 
+	plyr::revalue(c("true" = 1,
+									"false" = 0))
+```
+
+We can submit the data to the Kaggle competition to see the performance of our predictive model:
+```{r eval=FALSE}
+write_csv(titanic.test.pred, "kaggle_titanic_predictions.csv")
+```
+
+We made two submissions:
+
+- Not including `deck` with an accuracy of 0.77511
+- Including `deck` with an accuracy of 0.75598
+
+Apparently, the method to generate missing `deck` values is not that accurate. This could mean that `NA` values in deck are actually significative, or that the `deck` by itself just adds noise.
+
+
 
