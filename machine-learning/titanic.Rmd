@@ -1,5 +1,5 @@
 ---
-title: 'Delivery 3: Isa Stuff'
+title: 'Delivery 3: Machine Learning'
 author: "Alfredo Hernández"
 date: "15 June 2018"
 output:
@@ -237,13 +237,14 @@ Let us have a look at the passenger missing the `fare` feature:
 ```{r}
 titanic.full[which(is.na(titanic.full$fare)),]
 ```
-The relevant features to impute the `fare` would seem to be `pclass`, and `embarked`, so we will focus on those:
+The relevant features to impute the `fare` would seem to be `pclass`, and `embarked`, so we will focus on those with `pclass` and `embarked` fixed:
 ```{r}
 titanic.full %>%
   filter(pclass == 3, embarked == "S", is.na(fare) == F) %>% 
   ggplot() +
     geom_histogram(aes(x = fare), binwidth = 1, 
-                   fill = "slateblue1", colour = "black")
+                   fill = "slateblue1", colour = "black") +
+  labs(x = "Fare (USD)", y = "Count")
 ```
 
 Looking at the histogram above, it would seem appropiate to impute the median `fare` for this `pclass` and `embarked` combination:
@@ -266,7 +267,8 @@ length(unique(titanic.full$fare))
 
 ggplot(titanic.full) +
   geom_histogram(aes(x = fare), binwidth = 5, 
-                 fill = "slateblue1", colour = "black")
+                 fill = "slateblue1", colour = "black") +
+  labs(x = "Fare (USD)", y = "Count")
 ```
 
 That is definitely way too many, but we can prettify this data by categorising the fares into ranges, looking at the quantiles of the `fare` distribution.
@@ -406,7 +408,74 @@ titanic.full <- titanic.full %>%
 
 
 
-# 5. Predictive model
+# 5. Exploratory analysis
+
+Before building the predictive model, let us have a look at the new structure of the data set, and then explore how some variables can relate and explain the survival chance of passangers.
+
+```{r}
+glimpse(titanic.full)
+```
+
+```{r fig.height=10, fig.width=10}
+gg.meta <- titanic.full %>% 
+	filter(is.na(survived) == F,
+				 fare < 500) %>% 
+	ggplot() +
+		aes(fill = as.factor(survived)) +
+	labs(y = "Proportion", fill = "Survived")
+
+gg.pclass <- gg.meta +
+	geom_bar(aes(x = as.factor(pclass), y = ..count../sum(..count..)), position = "stack") +
+	labs(x = "Ticket class")
+
+gg.sex <- gg.meta +
+	geom_bar(aes(x = as.factor(sex), y = ..count../sum(..count..)), position = "stack")+
+	labs(x = "Sex")
+
+gg.age <- gg.meta +
+	geom_density(aes(x = age, y = ..count../sum(..count..)), alpha = 0.5)+
+	labs(x = "Age")
+
+gg.fare.range <- gg.meta +
+	geom_bar(aes(x = as.factor(fare.range), y = ..count../sum(..count..)), position = "stack")+
+	labs(x = "Fare range (USD)")
+
+gg.deck <- gg.meta +
+	geom_bar(aes(x = as.factor(deck), y = ..count../sum(..count..)), position = "stack")+
+	labs(x = "Deck")
+
+gg.ethn <- gg.meta +
+	geom_bar(aes(x = as.factor(ethnicity), y = ..count../sum(..count..)), position = "stack")+
+	labs(x = "Ethnicity")
+
+gg.title <- gg.meta +
+	geom_bar(aes(x = as.factor(title), y = ..count../sum(..count..)), position = "stack")+
+	labs(x = "Title")
+
+gg.fare <- gg.meta +
+	geom_density(aes(x = fare, y = ..count../sum(..count..)), alpha = 0.5)+
+	labs(x = "Fare (USD)")
+
+gg.fam <- gg.meta +
+	geom_bar(aes(x = as.factor(family.size), y = ..count../sum(..count..)), position = "stack")+
+	labs(x = "Family size")
+
+egg::ggarrange(plots = list(gg.sex, gg.age, 
+														gg.pclass, gg.deck,
+														gg.title, gg.fam,
+														gg.fare, gg.ethn), nrow = 4)
+```
+
+Although this is just a very simple description of what's really going on, we can extract some possibly important factors on predicting the `survived` response:
+
+- From the economical point of view, `pclass == 1` seems to have quite a big survival change when compared to the other two. 
+- Males mostly die. This can be seen from `title == "Mr"` and `sex == "male"`.
+- Children seem to survive quite a lot. This can be clearly seen in `survived` curve in the `age` distribution. 
+
+
+
+
+# 6. Predictive model
 For the predictive model we are going to use a Random Forest.
 
 ## Factoring the data
@@ -419,7 +488,7 @@ titanic.full <- titanic.full %>%
             funs(factor(.)))
 ```
 
-## Building the model
+## Building a Random Forest
 
 First of all, we will get rid of some features that should not help into predicting the survival chance (either because it is aggregated into another faeature, or because it is just noise):
 ```{r}
@@ -533,7 +602,7 @@ We focused in two solutions:
 
 Apparently, the method to generate missing `deck` values is not that accurate. This could mean that `NA` values in deck are actually significative, or that the `deck` by itself just adds noise, as we did not use the individual `fare` vales in the process of imputing the data (we only used `fare` to infer some kind of distribution of the `deck`).
 
-# 6. Conclusions
+# 7. Conclusions
 
 Although random forest is a quite powerful technique, one must be careful with a few things:
 
